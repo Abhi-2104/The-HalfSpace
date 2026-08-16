@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 460" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6e7781"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a6700"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-color="#1f2328" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1320" height="460" fill="#ffffff"/>
+
+  <text x="44" y="40" font-size="20" font-weight="700" fill="#1f2328">HalfSpace data flow</text>
+  <text x="44" y="63" font-size="12.5" fill="#6e7781">Source → raw cache → canonical DB → derived features → API. Frontend and agent are planned, not built.</text>
+
+  <!-- pipeline boxes -->
+  <g filter="url(#shadow)">
+    <g stroke="#57606a" stroke-width="1.5">
+      <rect x="40"  y="90" width="190" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="280" y="90" width="190" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="520" y="90" width="190" height="110" rx="12" fill="#eef2ff" stroke="#3538cd"/>
+      <rect x="760" y="90" width="190" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="1000" y="90" width="190" height="110" rx="12" fill="#ecfdf3" stroke="#067647"/>
+    </g>
+  </g>
+
+  <g font-size="15.5" font-weight="700" fill="#1f2328" text-anchor="middle">
+    <text x="135" y="135">StatsBomb</text>
+    <text x="135" y="155">Open Data</text>
+    <text x="375" y="145">data/raw/</text>
+    <text x="615" y="145" fill="#3538cd">SQLite</text>
+    <text x="855" y="145">features/</text>
+    <text x="1095" y="145" fill="#067647">FastAPI</text>
+  </g>
+
+  <g font-size="12" fill="#6e7781" text-anchor="middle">
+    <text x="135" y="178">source, static JSON</text>
+
+    <text x="375" y="168">cached once,</text>
+    <text x="375" y="183">gitignored</text>
+
+    <text x="615" y="168" fill="#3538cd">canonical schema</text>
+    <text x="615" y="183" fill="#3538cd">halfspace/db.py</text>
+
+    <text x="855" y="168">PPDA, xG-lite,</text>
+    <text x="855" y="183">similarity, sequences</text>
+
+    <text x="1095" y="168" fill="#067647">application layer</text>
+    <text x="1095" y="183" fill="#067647">halfspace/api.py</text>
+  </g>
+
+  <!-- arrows between pipeline boxes -->
+  <g stroke="#6e7781" stroke-width="1.75" marker-end="url(#arrow)">
+    <line x1="230" y1="145" x2="278" y2="145"/>
+    <line x1="470" y1="145" x2="518" y2="145"/>
+    <line x1="710" y1="145" x2="758" y2="145"/>
+    <line x1="950" y1="145" x2="998" y2="145"/>
+  </g>
+  <g font-size="12" fill="#6e7781" text-anchor="middle">
+    <text x="254" y="128">fetch once</text>
+    <text x="494" y="128">ingest</text>
+    <text x="734" y="128">derive</text>
+    <text x="974" y="128">serve</text>
+  </g>
+
+  <!-- downstream, not built yet -->
+  <g stroke="#9a6700" stroke-width="1.75" stroke-dasharray="6,4" marker-end="url(#arrow-amber)">
+    <line x1="1075" y1="200" x2="985" y2="298"/>
+    <line x1="1115" y1="200" x2="1185" y2="298"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="890" y="300" width="190" height="90" rx="12" fill="#fff8f0" stroke="#9a6700" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <rect x="1090" y="300" width="190" height="90" rx="12" fill="#fff8f0" stroke="#9a6700" stroke-width="1.5" stroke-dasharray="6,4"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="985" y="338" font-size="14.5" font-weight="700" fill="#9a6700">React frontend</text>
+    <text x="985" y="358" font-size="12" fill="#9a6700">Phase 4, not built yet</text>
+
+    <text x="1185" y="338" font-size="14.5" font-weight="700" fill="#9a6700">Agent</text>
+    <text x="1185" y="358" font-size="12" fill="#9a6700">Phase 5, not built yet</text>
+  </g>
+
+  <line x1="44" y1="420" x2="1276" y2="420" stroke="#d0d7de" stroke-width="1"/>
+  <text x="44" y="442" font-size="12.5" fill="#6e7781">Every layer left of FastAPI is disk-backed. Nothing calls StatsBomb live on a request path.</text>
+</svg>

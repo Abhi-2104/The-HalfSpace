@@ -6,76 +6,15 @@ raw → canonical → derived → API pipeline, not a demo dashboard over fake n
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph Source["Source"]
-        SB["StatsBomb Open Data\n(GitHub, static JSON)"]
-    end
+![HalfSpace data flow: StatsBomb Open Data fetched once into data/raw, ingested into a canonical SQLite schema, run through the features layer (PPDA, xG-lite, similarity, sequences), served through FastAPI. React frontend and agent are planned, not built yet.](docs/architecture.svg)
 
-    subgraph Raw["Raw layer"]
-        Cache["data/raw/\nfetched once, cached, gitignored"]
-    end
-
-    subgraph Canonical["Canonical layer"]
-        DB[("SQLite\nhalfspace/db.py")]
-    end
-
-    subgraph Derived["Derived / feature layer"]
-        Feat["halfspace/features.py\nPPDA, progressive passes,\nshot summary, goals"]
-    end
-
-    subgraph App["Application layer"]
-        API["FastAPI\nhalfspace/api.py"]
-    end
-
-    SB -- "fetch once" --> Cache
-    Cache -- "ingest_competition.py" --> DB
-    DB --> Feat
-    Feat --> API
-    API -- "not built yet" -.-> Frontend["React frontend"]
-    API -- "not built yet" -.-> Agent["Tool-calling agent"]
-```
-
-Every layer is disk-backed and inspectable on its own — nothing here calls
-StatsBomb live on a request path. See [Run it](#run-it) for how the layers
-get built.
+Every layer left of FastAPI is disk-backed and inspectable on its own —
+nothing here calls StatsBomb live on a request path. See [Run it](#run-it)
+for how the layers get built.
 
 ## Canonical schema
 
-```mermaid
-erDiagram
-    COMPETITION ||--o{ SEASON : has
-    COMPETITION ||--o{ MATCH : has
-    SEASON ||--o{ MATCH : has
-    TEAM ||--o{ MATCH : "home/away"
-    MATCH ||--o{ EVENT : contains
-    MATCH ||--|| DATA_COVERAGE : describes
-    MATCH ||--o{ PLAYER_MATCH_MINUTES : has
-    PLAYER ||--o{ EVENT : performs
-    PLAYER ||--o{ PLAYER_MATCH_MINUTES : plays
-    DATA_SOURCE ||--o{ MATCH : provides
-
-    EVENT {
-        text id PK
-        int match_id FK
-        int period "5 = penalty shootout, not regulation"
-        int minute
-        text type_name
-        real x
-        real y
-    }
-    DATA_COVERAGE {
-        int match_id PK
-        bool has_events
-        bool has_tracking
-        text tracking_variant "raw vs extrapolated"
-    }
-    PLAYER_MATCH_MINUTES {
-        int match_id PK
-        int player_id PK
-        real minutes "merged from overlapping lineup segments"
-    }
-```
+![HalfSpace canonical schema: Competition, Season and DataSource feed Match; Team links to Match as home/away; Match contains Event rows and has a 1:1 DataCoverage record; Player performs Events and has PlayerMatchMinutes per match.](docs/schema.svg)
 
 `DATA_COVERAGE` exists so the app can be honest about what backs any given
 match — some matches will only ever have basic data, and that has to be
