@@ -1,0 +1,198 @@
+{
+  "_confidence_tiers": {
+    "educational": "explained in prose only; no measurable proxy in our data",
+    "analytical": "has a defined, computable proxy metric in our data (may still be imperfect)",
+    "detectable": "actively detected/labeled by code in this repo, not just described",
+    "tracking_dependent": "the analytical proxy requires tracking data, which we only have for 17 matches (SkillCorner + IDSSE), not the 495 event-only matches",
+    "unsupported": "we don't attempt to measure this at all - would need data or modeling we don't have"
+  },
+  "concepts": [
+    {
+      "slug": "high-press",
+      "name": "High press",
+      "beginner_explanation": "The team without the ball tries to win it back high up the pitch, close to the opponent's goal, instead of retreating.",
+      "analytical_definition": "Low PPDA (passes allowed per defensive action) in the opponent's build-up zone - fewer passes before a defensive action means more aggressive pressing.",
+      "confidence": "detectable",
+      "detection_method": "halfspace.features.team.season_team_profiles / halfspace.features.ppda",
+      "required_data": ["event data with x,y locations"],
+      "related_concepts": ["gegenpressing", "pressing-trap", "mid-block"],
+      "limitations": "PPDA is a proxy, not a direct press-intensity measure - it can't distinguish organized pressing from a team that happens to concede possession high up. Validated on real WC2022 data: Spain/Germany (known high-press sides) rank at the top, Morocco (known deep block) near the bottom."
+    },
+    {
+      "slug": "mid-block",
+      "name": "Mid-block",
+      "beginner_explanation": "The team sits in a compact shape around the halfway line, inviting the opponent forward before engaging.",
+      "analytical_definition": "Moderate PPDA (not the highest or lowest) combined with a compact defensive shape.",
+      "confidence": "analytical",
+      "detection_method": "halfspace.features.team.season_team_profiles (PPDA mid-range); shape component needs tracking",
+      "required_data": ["event data"],
+      "related_concepts": ["high-press", "low-block", "defensive-compactness"],
+      "limitations": "We compute the PPDA half of this; the compactness half is tracking-dependent and only available for 17 matches."
+    },
+    {
+      "slug": "low-block",
+      "name": "Low block",
+      "beginner_explanation": "The team defends deep, close to their own goal, prioritizing compactness over pressing.",
+      "analytical_definition": "High PPDA (opponent allowed many passes before a defensive action).",
+      "confidence": "detectable",
+      "detection_method": "halfspace.features.team.season_team_profiles",
+      "required_data": ["event data"],
+      "related_concepts": ["high-press", "counterattack"],
+      "limitations": "Validated: Qatar/Costa Rica/Poland (weak WC2022 sides known for sitting deep) rank highest PPDA in our data."
+    },
+    {
+      "slug": "counterattack",
+      "name": "Counterattack",
+      "beginner_explanation": "A fast attack launched immediately after winning the ball back, before the opponent can reorganize defensively.",
+      "analytical_definition": "A turnover (recovery/interception/duel/block) followed by a shot from the same team within 15 seconds, covering at least 30m upfield.",
+      "confidence": "detectable",
+      "detection_method": "halfspace.features.sequences.find_counterattacks",
+      "required_data": ["event data with timestamps and x,y"],
+      "related_concepts": ["transition", "high-press"],
+      "limitations": "A rule-based heuristic, not a trained classifier - deliberately low-recall (finds clear cases, misses ambiguous ones) rather than over-labeling. Always reported as confidence=\"medium\", never as ground truth."
+    },
+    {
+      "slug": "progression",
+      "name": "Progressive action (pass/carry)",
+      "beginner_explanation": "Moving the ball meaningfully closer to the opponent's goal, by pass or dribble.",
+      "analytical_definition": "A pass or carry that reduces the distance to goal by at least 25%.",
+      "confidence": "detectable",
+      "detection_method": "halfspace.features.is_progressive_pass",
+      "required_data": ["event data with start/end x,y"],
+      "related_concepts": ["build-up", "verticality"],
+      "limitations": "The naive definition rewards goalkeeper long punts - excluded by default in player-level aggregation (see README known gotchas)."
+    },
+    {
+      "slug": "build-up",
+      "name": "Build-up play",
+      "beginner_explanation": "How a team moves the ball from their own defensive third into midfield and attack, usually starting from the goalkeeper or center-backs.",
+      "analytical_definition": "Possession chains starting in the defensive third, measured by pass volume/completion and progression rate.",
+      "confidence": "analytical",
+      "detection_method": "not yet implemented as a dedicated feature - derivable from event sequencing",
+      "required_data": ["event data"],
+      "related_concepts": ["progression", "possession-style"],
+      "limitations": "No dedicated build-up detector exists yet; would need possession-chain segmentation."
+    },
+    {
+      "slug": "transition",
+      "name": "Transition (attacking/defensive)",
+      "beginner_explanation": "The moment right after possession changes, when a team is switching from attacking to defending shape or vice versa.",
+      "analytical_definition": "The counterattack detector captures the attacking-transition case; defensive transition (re-shaping after losing the ball) is not separately measured.",
+      "confidence": "analytical",
+      "detection_method": "halfspace.features.sequences (attacking transition only)",
+      "required_data": ["event data"],
+      "related_concepts": ["counterattack", "gegenpressing"],
+      "limitations": "Only the attacking half of transition play is detected."
+    },
+    {
+      "slug": "gegenpressing",
+      "name": "Gegenpressing (counter-press)",
+      "beginner_explanation": "Pressing the opponent immediately after losing the ball, trying to win it back within a few seconds rather than retreating.",
+      "analytical_definition": "Would require: defensive action within N seconds of losing possession, in the zone where possession was lost.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["event data with precise possession-loss timestamps"],
+      "related_concepts": ["high-press", "transition"],
+      "limitations": "Not implemented - conceptually similar to the counterattack detector but inverted (defensive, not attacking) and not built yet."
+    },
+    {
+      "slug": "overload",
+      "name": "Overload",
+      "beginner_explanation": "Putting more players than the opponent has in a specific area of the pitch, to create a numbers advantage.",
+      "analytical_definition": "Would require simultaneous player positions in a zone - a tracking-dependent measure.",
+      "confidence": "tracking_dependent",
+      "detection_method": "not implemented - would use tracking_team_match-style frame data, zoned",
+      "required_data": ["tracking data"],
+      "related_concepts": ["half-space-occupation", "overlap"],
+      "limitations": "We have tracking for only 17 matches; no zone-overload detector built yet even for those."
+    },
+    {
+      "slug": "overlap",
+      "name": "Overlapping run",
+      "beginner_explanation": "A player runs around the outside of a teammate who has the ball, usually a fullback overlapping a winger.",
+      "analytical_definition": "Would require identifying a specific off-ball run pattern relative to the ball carrier - needs tracking.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["tracking data + off-ball run classification"],
+      "related_concepts": ["underlap", "overload"],
+      "limitations": "Not attempted. Even SkillCorner's own \"dynamic events\" off-ball-run classification (which we don't ingest) would be a closer starting point than our event data."
+    },
+    {
+      "slug": "underlap",
+      "name": "Underlapping run",
+      "beginner_explanation": "A player runs inside (rather than around the outside of) a teammate who has the ball.",
+      "analytical_definition": "Same requirements as overlap, inverted.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["tracking data + off-ball run classification"],
+      "related_concepts": ["overlap"],
+      "limitations": "Not attempted."
+    },
+    {
+      "slug": "third-man-run",
+      "name": "Third-man combination",
+      "beginner_explanation": "A passing pattern where the ball goes A-to-B, then B-to-C, where C's run was set up in advance - the \"third man\" exploiting space the first two players created.",
+      "analytical_definition": "Would require sequence-pattern matching across 3+ consecutive passes with specific spatial/timing structure.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["event data (feasible in principle) - not built"],
+      "related_concepts": ["progression", "overload"],
+      "limitations": "Plausible to build from event data alone (unlike overlap/underlap), just not implemented yet - a real candidate for future sequence-search work."
+    },
+    {
+      "slug": "half-space-occupation",
+      "name": "Half-space occupation",
+      "beginner_explanation": "The vertical stripes of the pitch between the wide channels and the center are called half-spaces - valuable areas for creating chances, harder for defenses to cover.",
+      "analytical_definition": "Share of touches/progressive actions occurring in the half-space zones (roughly the 2nd and 4th of 5 vertical pitch strips).",
+      "confidence": "analytical",
+      "detection_method": "computable from event x,y but not yet implemented as a named feature",
+      "required_data": ["event data"],
+      "related_concepts": ["progression", "overload"],
+      "limitations": "Not built yet - straightforward extension of existing x,y event data, flagged as a good next feature."
+    },
+    {
+      "slug": "defensive-compactness",
+      "name": "Defensive compactness",
+      "beginner_explanation": "How close together a team's players are when defending - a compact team is harder to play through.",
+      "analytical_definition": "Standard deviation of player x/y positions (width/length) during defensive phases.",
+      "confidence": "detectable",
+      "detection_method": "halfspace.features.spatial.team_shape (whole-match, not defensive-phase-only yet)",
+      "required_data": ["tracking data"],
+      "related_concepts": ["mid-block", "low-block"],
+      "limitations": "Only available for the 17 tracking matches. Current metric is whole-match average, not split into attacking/defending phases - a real next step."
+    },
+    {
+      "slug": "false-nine",
+      "name": "False nine",
+      "beginner_explanation": "A center-forward who drops deep into midfield instead of staying on the last defensive line, dragging a center-back out of position.",
+      "analytical_definition": "Would require positional-role deviation analysis (a nominal CF with a midfielder-like touch heatmap).",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["event data (touch locations) - plausible but not built"],
+      "related_concepts": ["build-up"],
+      "limitations": "Plausible from touch-location data alone; not implemented."
+    },
+    {
+      "slug": "possession-style",
+      "name": "Possession-based play",
+      "beginner_explanation": "A team that prioritizes keeping the ball, building patiently through many short passes, over direct/vertical play.",
+      "analytical_definition": "Pass volume per match, pass completion %, average pass length.",
+      "confidence": "detectable",
+      "detection_method": "computable from event table directly (pass count/completion already used in match_profile)",
+      "required_data": ["event data"],
+      "related_concepts": ["build-up", "progression"],
+      "limitations": "Basic version exists in match_profile; no season-level aggregation yet."
+    },
+    {
+      "slug": "offside-trap",
+      "name": "Offside trap",
+      "beginner_explanation": "The defensive line steps up together just before the opponent plays a through ball, aiming to catch an attacker offside.",
+      "analytical_definition": "Would require coordinated defensive-line-height changes timed to opponent passes - tracking-dependent.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["tracking data + defensive line coordination detection"],
+      "related_concepts": ["defensive-compactness", "high-press"],
+      "limitations": "Not attempted - a genuinely hard detection problem even with tracking data."
+    }
+  ]
+}
