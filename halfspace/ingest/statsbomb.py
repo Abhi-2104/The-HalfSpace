@@ -1,8 +1,11 @@
 """
 StatsBomb Open Data ingestion: fetch raw JSON, load into canonical schema.
-Raw JSON is NOT committed to git - it's re-fetched on demand (reproducible per
-source, per section 10 of the project spec). Test fixtures are the one exception
-(see tests/fixtures/), kept small and committed so tests don't need network.
+
+Raw JSON is cached to data/raw/ (gitignored) on first fetch - re-running
+ingestion doesn't re-hit the network. This IS the "raw" layer of the
+raw->canonical->derived architecture (section 10), it's just cached, not
+committed - source data is reproducible from the fetch logic, not from git.
+Test fixtures are the one deliberate exception (see tests/fixtures/).
 """
 import json
 import sqlite3
@@ -12,11 +15,25 @@ from urllib.request import urlopen
 
 BASE = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 LICENSE = "StatsBomb Open Data - free for research/non-commercial use, attribution required, no resale"
+RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 
 
-def _fetch_json(url: str):
+def _fetch_json_cached(url: str, cache_path: Path):
+    if cache_path.exists():
+        return json.loads(cache_path.read_text())
     with urlopen(url) as resp:
-        return json.loads(resp.read())
+        data = json.loads(resp.read())
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(data))
+    return data
+
+
+def fetch_match_list(competition_id: int, season_id: int) -> list:
+    """The competition/season match list - has real home/away team ids and final scores,
+    which per-event data does NOT reliably give you (event order != home/away)."""
+    url = f"{BASE}/matches/{competition_id}/{season_id}.json"
+    cache_path = RAW_DIR / "matches" / f"{competition_id}_{season_id}.json"
+    return _fetch_json_cached(url, cache_path)
 
 
 def _mmss_to_min(s: str) -> float:
@@ -37,14 +54,22 @@ def _ensure_data_source(conn: sqlite3.Connection) -> int:
 
 
 def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = None, lineups_path: Path = None,
-                  competition_id: int = None, season_id: int = None) -> None:
+                  competition_id: int = None, season_id: int = None, match_meta: dict = None) -> None:
     """
     Load one match's events + lineups into the canonical schema.
-    Pass events_path/lineups_path to load from local files (tests, offline);
-    omit to fetch live from the StatsBomb open-data repo.
+
+    events_path/lineups_path: load from local files (tests, offline). Omit to
+    fetch live (cached to data/raw/ after first fetch).
+
+    match_meta: {home_team_id, away_team_id, home_score, away_score, match_date}
+    from the competition's match-list endpoint. Without it, home/away and score
+    are left NULL rather than guessed from event order (event order is not
+    reliably home-team-first - guessing produced wrong scores before this fix).
     """
-    events = json.loads(events_path.read_text()) if events_path else _fetch_json(f"{BASE}/events/{match_id}.json")
-    lineups = json.loads(lineups_path.read_text()) if lineups_path else _fetch_json(f"{BASE}/lineups/{match_id}.json")
+    events = (json.loads(events_path.read_text()) if events_path
+              else _fetch_json_cached(f"{BASE}/events/{match_id}.json", RAW_DIR / "events" / f"{match_id}.json"))
+    lineups = (json.loads(lineups_path.read_text()) if lineups_path
+               else _fetch_json_cached(f"{BASE}/lineups/{match_id}.json", RAW_DIR / "lineups" / f"{match_id}.json"))
 
     source_id = _ensure_data_source(conn)
 
@@ -68,12 +93,15 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
         conn.execute("INSERT OR IGNORE INTO season (id, competition_id, name) VALUES (?, ?, ?)",
                      (season_id, competition_id, f"season_{season_id}"))
 
-    team_ids = list(teams.keys())
-    if competition_id is not None and season_id is not None and len(team_ids) == 2:
+    if competition_id is not None and season_id is not None:
+        meta = match_meta or {}
         conn.execute(
-            """INSERT OR REPLACE INTO match (id, competition_id, season_id, home_team_id, away_team_id, data_source_id)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (match_id, competition_id, season_id, team_ids[0], team_ids[1], source_id),
+            """INSERT OR REPLACE INTO match
+               (id, competition_id, season_id, match_date, home_team_id, away_team_id, home_score, away_score, data_source_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (match_id, competition_id, season_id, meta.get("match_date"),
+             meta.get("home_team_id"), meta.get("away_team_id"),
+             meta.get("home_score"), meta.get("away_score"), source_id),
         )
 
     # events - period is stored explicitly; period 5 = penalty shootout (see features.py docstring)
@@ -108,18 +136,29 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
         )
 
     # minutes played - reconstructed from lineup position segments, not assumed from presence.
-    # (this is the exact logic validated on the full La Liga 2015/16 season in the scratchpad test)
-    match_end_min = max((e["minute"] for e in events if e.get("period") in (1, 2)), default=95)
+    # match_end covers periods 1-4 (regulation + extra time) - period 5 (shootout) is not
+    # playing time. Segments are merged as intervals, not summed raw: a real anomaly found
+    # via test_data_quality.py (WC2022 final, Messi) has an overlapping/mislabeled segment
+    # that summed to 185 minutes - merging overlapping intervals fixes that class of bug
+    # generally, not just this one match.
+    match_end_min = max((e["minute"] for e in events if e.get("period") in (1, 2, 3, 4)), default=95)
     for team in lineups:
         for p in team["lineup"]:
-            total = 0.0
-            position = None
+            intervals = []
+            position = p["positions"][0]["position"] if p["positions"] else None
             for seg in p["positions"]:
-                if position is None:
-                    position = seg["position"]
                 start = _mmss_to_min(seg["from"])
                 end = _mmss_to_min(seg["to"]) if seg["to"] else match_end_min
-                total += max(0, end - start)
+                if end > start:
+                    intervals.append((start, end))
+            intervals.sort()
+            merged = []
+            for s, e in intervals:
+                if merged and s <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+                else:
+                    merged.append((s, e))
+            total = sum(e - s for s, e in merged)
             if total > 0:
                 conn.execute(
                     """INSERT OR REPLACE INTO player_match_minutes (match_id, player_id, team_id, minutes, position)
