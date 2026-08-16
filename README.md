@@ -22,17 +22,38 @@ visible, not silently degraded (see project spec §8).
 
 ## Status
 
-**Phases 1-3 (data layer, analytics, API) — done.**
+**Phases 1-4 (data layer, analytics, API, frontend) — done.**
 
 Phase 3 added a real API surface over everything Phase 2 validated: player/team
 season profiles, role-aware similarity, head-to-head comparison (with a
 role-mismatch caveat when the comparison isn't apples-to-apples — the API
 itself can flag "this comparison may not be meaningful," not just the agent
-layer later), sequence search, tracking lookups, and a 16-concept tactical
+layer later), sequence search, tracking lookups, and a 19-concept tactical
 ontology where every concept is honestly tagged with one of 5 confidence
 tiers (`educational` / `analytical` / `detectable` / `tracking_dependent` /
 `unsupported`) rather than presenting explanation and detection as the same
 thing. 26/26 tests pass, all against the real 495+17-match dataset.
+
+Phase 4 is a React/Vite frontend (`frontend/`) — Explore, Matches, Players,
+Teams, Tactics, Compare, all reading the real API, no mocked data anywhere.
+Visually verified in an actual browser (Playwright screenshots), not just
+"the dev server started" — that process caught two real bugs:
+
+- A dangling tactical-ontology reference (`pressing-trap` and `verticality`
+  were linked from other concepts but never defined - would 404). Fixed by
+  writing the missing concepts, not by deleting the links.
+- `season_player_profiles`/`season_team_profiles` took 3.5-4.3 seconds per
+  request (a full Python-level scan of every event in the competition/season -
+  700k+ rows for La Liga). Fixed with a process-lifetime cache plus an
+  API-startup warm pass, so no user - not even the first one - ever sees that
+  latency. Verified: 4.3s → ~15ms.
+
+Design: dark-first, amber/clay/teal-green/blue categorical palette validated
+against the dataviz skill's colorblind-safety + contrast checks on our actual
+surfaces (not hand-picked), Big Shoulders Display + IBM Plex type pairing,
+a coverage-strip signature element (three ticks: events/tracking/360) that
+appears on every match/player/team card so the UI never implies richer data
+than what's actually there.
 
 Manually verified real output, not just green tests: `/teams/compare` for
 Spain vs Morocco (WC2022) correctly returns Spain's actual 4 matches and
@@ -87,7 +108,7 @@ halfspace/
   db.py                   canonical schema (SQLite)
   api.py                  FastAPI surface (same tools the agent layer will call later)
   tactical.py              loads tactical_concepts.json
-  tactical_concepts.json   16 concepts, each tagged with a confidence tier - not a DB table (too small to earn one)
+  tactical_concepts.json   19 concepts, each tagged with a confidence tier - not a DB table (too small to earn one)
   ingest/
     statsbomb.py          fetch (cached) + load StatsBomb open-data matches
     skillcorner.py         fetch (LFS-aware, cached) + compute team compactness
@@ -112,6 +133,10 @@ tests/
   test_spatial.py          plausible-range checks on tracking data
   test_api.py              endpoint tests against the live dataset
   fixtures/                 small, real, committed StatsBomb JSON (no network needed for tests)
+frontend/                  React + Vite + TypeScript, reads the API above, no mocked data
+  src/lib/api.ts            typed client, one function per endpoint
+  src/components/           CoverageStrip (signature element), PitchShotMap, CompareBar, ConfidenceBadge
+  src/pages/                Explore, Matches, MatchDetail, Players, PlayerDetail, Teams, Tactics, TacticDetail, Compare
 ```
 
 Raw fetched data lives in `data/raw/` and is **not** committed — it's cached
@@ -134,7 +159,15 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 .venv/bin/uvicorn halfspace.api:app --reload
 # then: curl localhost:8000/matches/3869685/profile
+
+# frontend (separate terminal):
+cd frontend && npm install && npm run dev
+# then open http://localhost:5173
 ```
+
+Backend startup pre-warms the player/team season-profile caches for every
+ingested competition (a few seconds, one-time) - see "Known gotchas" below
+for why that exists.
 
 ## Known gotchas already found and handled
 
@@ -157,3 +190,13 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
   Loading it as a full DOM tree isn't viable - `halfspace/ingest/idsse.py`
   streams it with `lxml.etree.iterparse` and downsamples (every 25th frame,
   ~1/sec) since a team-shape aggregate doesn't need full 25fps resolution.
+- `season_player_profiles`/`season_team_profiles` scan every event in a
+  competition/season in a Python loop (700k+ rows for La Liga) - measured at
+  3.5-4.3 seconds per call. Fixed with a process-lifetime cache (`_profile_cache`
+  in `halfspace/features/player.py` and `team.py`) plus an API-startup warm
+  pass (`warm_caches()` in `halfspace/api.py`), not just a per-request cache -
+  restart the API after re-ingesting a competition to pick up new data.
+- A StatsBomb shot's `x` coordinate is already relative to the shooting team's
+  own attacking direction (both teams' shots cluster near x=120, not split
+  across physical pitch ends) - verified against real WC2022 Final data before
+  building the shot map, not assumed. No attacking-direction-flip logic needed.

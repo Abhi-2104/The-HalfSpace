@@ -193,6 +193,28 @@
       "required_data": ["tracking data + defensive line coordination detection"],
       "related_concepts": ["defensive-compactness", "high-press"],
       "limitations": "Not attempted - a genuinely hard detection problem even with tracking data."
+    },
+    {
+      "slug": "pressing-trap",
+      "name": "Pressing trap",
+      "beginner_explanation": "A team deliberately leaves what looks like an open pass into a specific zone, then swarms that zone the instant the ball arrives, engineering a turnover in a dangerous area rather than pressing everywhere at once.",
+      "analytical_definition": "Would require recoveries/interceptions concentrated in a specific zone shortly after a pass into that zone, distinguished from incidental pressure.",
+      "confidence": "unsupported",
+      "detection_method": null,
+      "required_data": ["event data (plausible in principle) - not built"],
+      "related_concepts": ["high-press", "gegenpressing"],
+      "limitations": "Not attempted - would need to distinguish deliberate zone-luring from a team just pressing broadly, which is a real modeling problem, not just a query."
+    },
+    {
+      "slug": "verticality",
+      "name": "Verticality",
+      "beginner_explanation": "How directly a team moves the ball toward goal, as opposed to circulating it sideways or backwards to retain possession.",
+      "analytical_definition": "Ratio of forward-progressing passes to total passes, or average pass direction angle relative to the opponent's goal.",
+      "confidence": "analytical",
+      "detection_method": "computable from existing progressive-pass data (halfspace.features.is_progressive_pass) - not yet aggregated as a named verticality ratio",
+      "required_data": ["event data"],
+      "related_concepts": ["progression", "possession-style"],
+      "limitations": "The underlying signal already exists in the codebase; just needs a dedicated aggregation, not new data."
     }
   ]
 }

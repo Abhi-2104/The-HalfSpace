@@ -25,8 +25,22 @@ SIMILARITY_FEATURES = [
 ]
 
 
+# Process-level cache: computing this scans every event for the competition/season
+# (700k+ rows for a full league season) with a per-row Python check for progressive
+# actions - real measured cost was 4+ seconds for La Liga 2015/16, turning every
+# player-detail/similarity page load into a multi-second spinner. The underlying
+# events don't change between ingestion runs, so caching for the life of the API
+# process is a real fix, not a workaround - restart the server after re-ingesting
+# a competition to pick up new data.
+_profile_cache: dict[tuple[int, int], list[dict]] = {}
+
+
 def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int) -> list[dict]:
     """One row per player with >=MIN_MINUTES in this competition/season, per-90 features."""
+    cache_key = (competition_id, season_id)
+    if cache_key in _profile_cache:
+        return _profile_cache[cache_key]
+
     minutes_rows = conn.execute(
         """SELECT player_id, SUM(minutes) AS minutes,
                   (SELECT position FROM player_match_minutes p2
@@ -97,6 +111,7 @@ def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season
         for key in ("goals", "shots", "key_passes", "prog_passes", "prog_carries", "dribbles_completed", "pressures", "touches"):
             row[f"{key}_p90"] = round(p[key] / minutes * 90, 2)
         out.append(row)
+    _profile_cache[cache_key] = out
     return out
 
 

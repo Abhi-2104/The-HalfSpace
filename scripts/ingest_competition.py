@@ -28,6 +28,15 @@ def main():
     match_list = statsbomb.fetch_match_list(competition_id, season_id)
     print(f"{len(match_list)} matches in competition {competition_id} season {season_id}")
 
+    comp_name, season_name = statsbomb.fetch_competition_season_names(competition_id, season_id)
+    conn.execute("INSERT OR IGNORE INTO competition (id, name) VALUES (?, ?)", (competition_id, comp_name))
+    conn.execute("UPDATE competition SET name = ? WHERE id = ?", (comp_name, competition_id))
+    conn.execute("INSERT OR IGNORE INTO season (id, competition_id, name) VALUES (?, ?, ?)",
+                 (season_id, competition_id, season_name))
+    conn.execute("UPDATE season SET name = ? WHERE id = ?", (season_name, season_id))
+    conn.commit()
+    print(f"  -> {comp_name} {season_name}")
+
     # a match with any ingested events is considered done - crude but correct for resume purposes.
     done_ids = {r["match_id"] for r in conn.execute(
         "SELECT DISTINCT match_id FROM event WHERE match_id IN (SELECT id FROM match WHERE competition_id=? AND season_id=?)",

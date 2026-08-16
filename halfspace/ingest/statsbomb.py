@@ -36,6 +36,17 @@ def fetch_match_list(competition_id: int, season_id: int) -> list:
     return _fetch_json_cached(url, cache_path)
 
 
+def fetch_competition_season_names(competition_id: int, season_id: int) -> tuple[str, str]:
+    """Real names (e.g. 'FIFA World Cup', '2022') - ingest_match previously used
+    placeholder names like 'competition_43' since it only ever saw per-match JSON,
+    which doesn't carry the competition's display name."""
+    rows = _fetch_json_cached(f"{BASE}/competitions.json", RAW_DIR / "competitions.json")
+    for row in rows:
+        if row["competition_id"] == competition_id and row["season_id"] == season_id:
+            return row["competition_name"], row["season_name"]
+    return f"competition_{competition_id}", f"season_{season_id}"
+
+
 def _mmss_to_min(s: str) -> float:
     m, sec = s.split(":")
     return int(m) + int(sec) / 60

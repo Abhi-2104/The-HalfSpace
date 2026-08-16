@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/*
+  HalfSpace design tokens. Dark-first by deliberate choice, not a light/dark
+  toggle - the product's own identity is a "field analyst's dossier at night."
+  Categorical/data colors below are validated against the dataviz skill's
+  six-check validator (lightness band, chroma floor, CVD separation,
+  normal-vision floor, contrast) on our actual surfaces - not hand-picked.
+*/
+@theme {
+  --font-display: "Big Shoulders Display", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* surfaces */
+  --color-pitch-950: #0b0e11; /* page */
+  --color-pitch-900: #12161b; /* card */
+  --color-pitch-800: #1b2129; /* raised / hairline border */
+  --color-pitch-700: #262e38; /* hover border */
+
+  /* ink */
+  --color-ink-0: #eceef0; /* primary text */
+  --color-ink-1: #9aa3af; /* secondary text */
+  --color-ink-2: #626b76; /* muted / captions */
+
+  /* data + brand (validated categorical set, see docs above) */
+  --color-marker: #b08a22; /* amber - primary brand accent, "detectable"/positive */
+  --color-marker-bright: #e2b93b; /* UI-only tint of marker, not used as a data/series color */
+  --color-clay: #c94b3f; /* danger, "unsupported" tier, off-target */
+  --color-pitch-green: #2d9c8c; /* "good"/complete, tracking-observed */
+  --color-info: #4c8fe0; /* secondary series, links */
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-pitch-950);
+  color: var(--color-ink-0);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-marker) 40%, transparent);
+}
+
+/* signature element: the coverage strip. Three tick marks (events / tracking / 360)
+   that appear on every match/player/team card - the one visual motif that shows up
+   everywhere and embodies the product's core claim: never imply richer data than
+   what actually backs a given record. */
+.coverage-tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+.coverage-tick[data-on="true"] {
+  background: var(--color-marker-bright);
+}
+.coverage-tick[data-on="false"] {
+  background: var(--color-pitch-800);
+}
