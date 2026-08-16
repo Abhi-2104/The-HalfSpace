@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 800" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6e7781"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-color="#1f2328" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1160" height="800" fill="#ffffff"/>
+
+  <text x="44" y="38" font-size="20" font-weight="700" fill="#1f2328">HalfSpace canonical schema</text>
+  <text x="44" y="60" font-size="12.5" fill="#6e7781">Core entities and how they relate — see Notes below for two real data-quality gotchas.</text>
+
+  <!-- legend -->
+  <g font-size="11.5" fill="#57606a">
+    <rect x="790" y="26" width="13" height="13" rx="3" fill="#f6f8fa" stroke="#57606a"/>
+    <text x="810" y="37">core entity</text>
+    <rect x="900" y="26" width="13" height="13" rx="3" fill="#eef2ff" stroke="#3538cd"/>
+    <text x="920" y="37">high-volume hub</text>
+    <rect x="1030" y="26" width="13" height="13" rx="3" fill="#fff8f0" stroke="#9a6700"/>
+    <text x="1050" y="37">coverage/quality</text>
+  </g>
+
+  <!-- edges -->
+  <g stroke="#6e7781" stroke-width="1.75" fill="none" marker-end="url(#arrow)">
+    <line x1="280" y1="155" x2="388" y2="155"/>
+    <line x1="165" y1="210" x2="458" y2="338"/>
+    <line x1="530" y1="210" x2="530" y2="338"/>
+    <line x1="945" y1="210" x2="602" y2="338"/>
+    <line x1="280" y1="395" x2="388" y2="395"/>
+    <line x1="670" y1="395" x2="828" y2="395"/>
+    <line x1="530" y1="450" x2="530" y2="578"/>
+    <line x1="280" y1="635" x2="388" y2="635"/>
+    <line x1="670" y1="450" x2="858" y2="578"/>
+  </g>
+  <g font-size="12" fill="#6e7781" text-anchor="middle">
+    <text x="334" y="145">has</text>
+    <text x="292" y="270">has</text>
+    <text x="530" y="270">has</text>
+    <text x="793" y="270">provides</text>
+    <text x="334" y="385">home / away</text>
+    <text x="749" y="385">1 : 1</text>
+    <text x="530" y="510">contains</text>
+    <text x="334" y="625">performs</text>
+    <text x="800" y="510">tracks minutes for</text>
+  </g>
+
+  <!-- boxes -->
+  <g filter="url(#shadow)">
+    <g stroke="#57606a" stroke-width="1.5">
+      <rect x="50"  y="100" width="230" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="390" y="100" width="280" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="830" y="100" width="230" height="110" rx="12" fill="#f6f8fa"/>
+
+      <rect x="50"  y="340" width="230" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="390" y="340" width="280" height="110" rx="12" fill="#eef2ff" stroke="#3538cd"/>
+      <rect x="830" y="340" width="230" height="110" rx="12" fill="#fff8f0" stroke="#9a6700"/>
+
+      <rect x="50"  y="580" width="230" height="110" rx="12" fill="#f6f8fa"/>
+      <rect x="390" y="580" width="280" height="110" rx="12" fill="#eef2ff" stroke="#3538cd"/>
+      <rect x="830" y="580" width="230" height="110" rx="12" fill="#f6f8fa"/>
+    </g>
+  </g>
+
+  <!-- footnote badges -->
+  <circle cx="665" cy="350" r="12" fill="#b42318"/>
+  <text x="665" y="354.5" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <circle cx="1050" cy="350" r="12" fill="#b42318"/>
+  <text x="1050" y="354.5" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+
+  <g font-size="15" font-weight="700" fill="#1f2328" text-anchor="middle">
+    <text x="165" y="132">COMPETITION</text>
+    <text x="530" y="132">SEASON</text>
+    <text x="945" y="132">DATA_SOURCE</text>
+
+    <text x="165" y="372">TEAM</text>
+    <text x="530" y="372" fill="#3538cd">MATCH</text>
+    <text x="945" y="372" fill="#9a6700">DATA_COVERAGE</text>
+
+    <text x="165" y="612">PLAYER</text>
+    <text x="530" y="612" fill="#3538cd">EVENT</text>
+    <text x="945" y="612">PLAYER_MATCH_MINUTES</text>
+  </g>
+
+  <g font-size="12" fill="#57606a" text-anchor="middle">
+    <text x="165" y="156">id, name</text>
+    <text x="530" y="156">id, competition_id, name</text>
+    <text x="945" y="156">provider, license</text>
+    <text x="945" y="172">retrieved_at</text>
+
+    <text x="165" y="396">id, name</text>
+    <text x="530" y="396">home/away team,</text>
+    <text x="530" y="412">home/away score</text>
+    <text x="945" y="396">has_events, has_tracking</text>
+
+    <text x="165" y="636">id, name</text>
+    <text x="530" y="636">type_name, x, y,</text>
+    <text x="530" y="652">outcome_name</text>
+    <text x="945" y="636">minutes (merged</text>
+    <text x="945" y="652">intervals), position</text>
+  </g>
+
+  <!-- notes -->
+  <line x1="44" y1="722" x2="1116" y2="722" stroke="#d0d7de" stroke-width="1"/>
+  <g font-size="12.5" fill="#57606a">
+    <circle cx="52" cy="744" r="9" fill="#b42318"/>
+    <text x="52" y="748" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+    <text x="70" y="748">EVENT.period = 5 is the penalty shootout, not extra time — excluded from "regulation" aggregates by convention codebase-wide.</text>
+
+    <circle cx="52" cy="770" r="9" fill="#b42318"/>
+    <text x="52" y="774" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+    <text x="70" y="774">DATA_COVERAGE.tracking_variant distinguishes SkillCorner's "extrapolated" (modeled) data from true raw broadcast tracking.</text>
+  </g>
+</svg>
