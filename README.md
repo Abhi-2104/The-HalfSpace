@@ -22,7 +22,22 @@ visible, not silently degraded (see project spec §8).
 
 ## Status
 
-**Phase 1 (canonical data layer) and Phase 2 (analytics + tracking) — done.**
+**Phases 1-3 (data layer, analytics, API) — done.**
+
+Phase 3 added a real API surface over everything Phase 2 validated: player/team
+season profiles, role-aware similarity, head-to-head comparison (with a
+role-mismatch caveat when the comparison isn't apples-to-apples — the API
+itself can flag "this comparison may not be meaningful," not just the agent
+layer later), sequence search, tracking lookups, and a 16-concept tactical
+ontology where every concept is honestly tagged with one of 5 confidence
+tiers (`educational` / `analytical` / `detectable` / `tracking_dependent` /
+`unsupported`) rather than presenting explanation and detection as the same
+thing. 26/26 tests pass, all against the real 495+17-match dataset.
+
+Manually verified real output, not just green tests: `/teams/compare` for
+Spain vs Morocco (WC2022) correctly returns Spain's actual 4 matches and
+Morocco's actual 7 (their real tournament runs), with goal rates matching
+each team's known style.
 
 | Competition / provider | Matches | Kind |
 |---|---|---|
@@ -71,6 +86,8 @@ not preemptively.
 halfspace/
   db.py                   canonical schema (SQLite)
   api.py                  FastAPI surface (same tools the agent layer will call later)
+  tactical.py              loads tactical_concepts.json
+  tactical_concepts.json   16 concepts, each tagged with a confidence tier - not a DB table (too small to earn one)
   ingest/
     statsbomb.py          fetch (cached) + load StatsBomb open-data matches
     skillcorner.py         fetch (LFS-aware, cached) + compute team compactness
@@ -93,6 +110,7 @@ tests/
   test_data_quality.py     sanity checks against the live ingested dataset
   test_analytics.py        known-fact checks (Suárez, Messi/Neymar, Spain's press...)
   test_spatial.py          plausible-range checks on tracking data
+  test_api.py              endpoint tests against the live dataset
   fixtures/                 small, real, committed StatsBomb JSON (no network needed for tests)
 ```
 
