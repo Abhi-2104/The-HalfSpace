@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 data/*.db
 data/raw/
+data/models/
 .pytest_cache/
 .claude/settings.local.json
 .serena/
