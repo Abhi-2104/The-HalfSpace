@@ -69,3 +69,22 @@ def season_team_profiles(conn: sqlite3.Connection, competition_id: int, season_i
     out.sort(key=lambda t: t["avg_ppda"] if t["avg_ppda"] is not None else 999)
     _profile_cache[cache_key] = out
     return out
+
+
+def compare_teams(conn: sqlite3.Connection, team_a: int, team_b: int, competition_id: int, season_id: int) -> dict:
+    profiles = {t["team_id"]: t for t in season_team_profiles(conn, competition_id, season_id)}
+    a, b = profiles.get(team_a), profiles.get(team_b)
+    if not a or not b:
+        missing = [tid for tid in (team_a, team_b) if tid not in profiles]
+        return {"error": f"team(s) not found in this competition/season: {missing}"}
+
+    caveat = None
+    if a["low_sample"] or b["low_sample"]:
+        low = [t["team"] for t in (a, b) if t["low_sample"]]
+        caveat = f"{', '.join(low)} played fewer than 4 matches in this competition - PPDA comparison is low-confidence."
+    return {
+        "team_a": a, "team_b": b,
+        "diff_a_minus_b": {"avg_ppda": round((a["avg_ppda"] or 0) - (b["avg_ppda"] or 0), 2),
+                            "goals_per_match": round(a["goals_per_match"] - b["goals_per_match"], 2)},
+        "caveat": caveat,
+    }
