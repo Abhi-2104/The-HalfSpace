@@ -89,6 +89,25 @@ CREATE TABLE IF NOT EXISTS player_match_minutes (
     position TEXT,
     PRIMARY KEY (match_id, player_id)
 );
+
+-- Tracking-derived team-shape features. Deliberately NOT foreign-keyed to
+-- match/team above: the tracking providers (SkillCorner open data, IDSSE)
+-- cover different competitions than the ingested StatsBomb data with no real
+-- entity overlap - reusing those tables would imply a link that doesn't
+-- exist. provider + provider_match_id is the natural key here instead.
+CREATE TABLE IF NOT EXISTS tracking_team_match (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    provider_match_id TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    is_home INTEGER,
+    frames_used INTEGER NOT NULL,
+    avg_players_tracked REAL NOT NULL,
+    width_std_y REAL NOT NULL,
+    length_std_x REAL NOT NULL,
+    tracking_variant TEXT NOT NULL,   -- e.g. 'extrapolated' (SkillCorner) vs 'observed' (IDSSE/DFL)
+    UNIQUE (provider, provider_match_id, team_name)
+);
 """
 
 

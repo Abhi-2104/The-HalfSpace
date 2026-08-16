@@ -22,14 +22,16 @@ visible, not silently degraded (see project spec §8).
 
 ## Status
 
-**Phase 1 (canonical data layer) — done.**
+**Phase 1 (canonical data layer) and Phase 2 (analytics + tracking) — done.**
 
-| Competition | Matches | Source |
+| Competition / provider | Matches | Kind |
 |---|---|---|
-| FIFA World Cup 2022 | 64 (full) | StatsBomb Open Data |
-| La Liga 2015/16 | 380 (full season) | StatsBomb Open Data |
-| UEFA Euro 2024 | 51 (full) | StatsBomb Open Data |
-| **Total** | **495 real matches, ~1.7M events** | |
+| FIFA World Cup 2022 | 64 (full) | StatsBomb event data |
+| La Liga 2015/16 | 380 (full season) | StatsBomb event data |
+| UEFA Euro 2024 | 51 (full) | StatsBomb event data |
+| SkillCorner Open Data (A-League 2024/25) | 10 (full) | Broadcast tracking, modeled/extrapolated |
+| IDSSE (Bundesliga 2022/23, 1./2. div) | 7 (full) | True optical tracking, 25fps |
+| **Total** | **495 event matches + 17 tracking matches** | |
 
 `tests/test_data_quality.py` runs against this live dataset (not just
 fixtures) and caught two real bugs, both fixed at the shared ingestion layer
@@ -51,7 +53,8 @@ Domains validated end-to-end on real data so far:
 | Tactical intelligence | PPDA press-intensity across all 64 WC2022 matches | Spain/Germany rank as top pressers, Morocco/Qatar/Costa Rica as deep blocks — matches known tactics |
 | Player intelligence | Full-season (380-match) per-90 profiling + role-aware similarity | Suárez tops goals/90 (real Pichichi winner); Messi↔Neymar is the top similarity match |
 | Sequence search | Heuristic counterattack detector | Works, correctly labeled medium-confidence, not a trained classifier |
-| Spatial/tracking | Team compactness from real SkillCorner broadcast tracking | Differentiated width/length per team |
+| Shot quality (xG-lite) | Logistic regression, 11,937 real shots, distance/angle/header | AUC 0.79, Brier 0.083 — in line with published xG models, coefficient signs all football-sane |
+| Spatial/tracking | Team compactness across two independent providers (broadcast-modeled + true optical) | 17 real matches, 34 team-rows; SkillCorner and IDSSE land in the same physical range despite different leagues/methods — a real cross-provider sanity check, not just "it ran" |
 
 ## Why SQLite, not Postgres, right now
 
@@ -66,25 +69,38 @@ not preemptively.
 
 ```
 halfspace/
-  db.py                 canonical schema (SQLite)
-  features.py            shared feature logic (period-scoping, PPDA, progressive passes)
+  db.py                   canonical schema (SQLite)
+  api.py                  FastAPI surface (same tools the agent layer will call later)
   ingest/
-    statsbomb.py         fetch (cached) + load StatsBomb open-data matches
-  api.py                 FastAPI surface (same tools the agent layer will call later)
+    statsbomb.py          fetch (cached) + load StatsBomb open-data matches
+    skillcorner.py         fetch (LFS-aware, cached) + compute team compactness
+    idsse.py               fetch + stream-parse DFL tracking XML, compute team compactness
+  features/
+    __init__.py            shared match-scoped logic (period-scoping, PPDA, progressive passes)
+    player.py               season per-90 profiles + role-aware similarity
+    team.py                 season PPDA/goals/shots aggregation
+    sequences.py            counterattack heuristic detector
+    shot_quality.py         xG-lite logistic regression model
+    spatial.py               reads tracking_team_match (SkillCorner + IDSSE)
 scripts/
-  ingest_match.py        CLI: ingest one match by id
-  ingest_competition.py  CLI: bulk-ingest a full competition/season, idempotent
+  ingest_match.py          CLI: ingest one StatsBomb match by id
+  ingest_competition.py    CLI: bulk-ingest a full competition/season, idempotent
+  ingest_skillcorner.py    CLI: ingest all 10 SkillCorner matches
+  ingest_idsse.py          CLI: ingest all 7 IDSSE matches (~2.5GB download)
+  train_shot_model.py      CLI: train + evaluate the shot-quality model
 tests/
-  test_pipeline.py       smoke test against a real fixture match (WC2022 Final)
-  test_data_quality.py   sanity checks against the live ingested dataset
-  fixtures/               small, real, committed StatsBomb JSON (no network needed for tests)
+  test_pipeline.py         smoke test against a real fixture match (WC2022 Final)
+  test_data_quality.py     sanity checks against the live ingested dataset
+  test_analytics.py        known-fact checks (Suárez, Messi/Neymar, Spain's press...)
+  test_spatial.py          plausible-range checks on tracking data
+  fixtures/                 small, real, committed StatsBomb JSON (no network needed for tests)
 ```
 
-Raw fetched JSON lives in `data/raw/` and is **not** committed — it's cached
-locally so re-running ingestion doesn't re-hit the network, but it's fully
-reproducible from the fetch logic in `halfspace/ingest/`. The fixture files
-under `tests/fixtures/` are the one deliberate exception: small, real, and
-committed so tests run offline.
+Raw fetched data lives in `data/raw/` and is **not** committed — it's cached
+locally so re-running ingestion doesn't re-hit the network (this matters more
+for tracking: ~3.4GB combined), but it's fully reproducible from the fetch
+logic in `halfspace/ingest/`. The fixture files under `tests/fixtures/` are
+the one deliberate exception: small, real, and committed so tests run offline.
 
 ## Run it
 
@@ -114,4 +130,12 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
   intervals, not summing raw segment durations.
 - SkillCorner tracking files are Git-LFS — `raw.githubusercontent.com` silently
   returns a pointer file, not data. Needs `media.githubusercontent.com/media/...`.
-  (Not yet wired into an ingestion module — noted here so it isn't rediscovered.)
+  Handled in `halfspace/ingest/skillcorner.py`.
+- IDSSE was assumed earlier in this project to need HuggingFace auth resolution -
+  that assumption was wrong, checked directly against the HF API (`"gated": false,
+  "private": false`) rather than left standing. It's fully public.
+- IDSSE's positions file is ~350-420MB of XML per match, one `<FrameSet>` per
+  player/referee/ball containing thousands of `<Frame>` elements at 25fps.
+  Loading it as a full DOM tree isn't viable - `halfspace/ingest/idsse.py`
+  streams it with `lxml.etree.iterparse` and downsamples (every 25th frame,
+  ~1/sec) since a team-shape aggregate doesn't need full 25fps resolution.
