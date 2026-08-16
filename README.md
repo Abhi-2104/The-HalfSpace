@@ -6,9 +6,20 @@ raw → canonical → derived → API pipeline, not a demo dashboard over fake n
 
 ## Status
 
-Vertical slice proven: one real match (WC2022 Final), fetched from StatsBomb Open
-Data, ingested into a canonical SQLite schema, served through a FastAPI endpoint,
-verified against the real known result (3-3 after extra time, shootout excluded).
+**Phase 1 (canonical data layer) done.** 495 real matches ingested — full WC2022
+(64), full La Liga 2015/16 season (380), full Euro 2024 (51) — via
+`scripts/ingest_competition.py`, raw JSON cached locally so re-runs don't
+re-hit the network. Data-quality suite (`tests/test_data_quality.py`) runs
+against the live dataset, not just fixtures, and it earned its keep: caught a
+real minutes-played bug (overlapping lineup segments in the WC2022 final's
+source data summed to 185 minutes instead of merging to the correct 124) and
+a home/away-team assignment bug (was guessed from event order instead of the
+match-list endpoint). Both fixed at the shared ingestion layer.
+
+Vertical slice (the original one-match version) still holds: fetched from
+StatsBomb Open Data, ingested into a canonical SQLite schema, served through a
+FastAPI endpoint, verified against the real known result (3-3 after extra
+time, shootout excluded).
 
 Data domains validated so far (see project notes for full detail):
 - **Match intelligence** — shot map, goal timeline, passing.

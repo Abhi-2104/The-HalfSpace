@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS match (
     competition_id INTEGER NOT NULL REFERENCES competition(id),
     season_id INTEGER NOT NULL REFERENCES season(id),
     match_date TEXT,
-    home_team_id INTEGER NOT NULL REFERENCES team(id),
-    away_team_id INTEGER NOT NULL REFERENCES team(id),
+    home_team_id INTEGER REFERENCES team(id),   -- nullable: unknown when ingested without match-list metadata (e.g. tests)
+    away_team_id INTEGER REFERENCES team(id),
     home_score INTEGER,
     away_score INTEGER,
     data_source_id INTEGER REFERENCES data_source(id)
