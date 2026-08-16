@@ -165,3 +165,23 @@ def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: in
             for p, sim in ranked
         ],
     }
+
+
+def compare_players(conn: sqlite3.Connection, player_a: int, player_b: int, competition_id: int, season_id: int) -> dict:
+    """Head-to-head. Flags role_mismatch + a caveat when the comparison isn't
+    apples-to-apples - a judgment the tool itself makes, not left to whatever
+    calls it (API route or agent) to remember to apply."""
+    profiles = {p["player_id"]: p for p in season_player_profiles(conn, competition_id, season_id)}
+    a, b = profiles.get(player_a), profiles.get(player_b)
+    if not a or not b:
+        missing = [pid for pid in (player_a, player_b) if pid not in profiles]
+        return {"error": f"player(s) not found with >= {MIN_MINUTES} minutes: {missing}"}
+
+    diff = {f: round(a[f] - b[f], 2) for f in SIMILARITY_FEATURES}
+    role_mismatch = a["position"] != b["position"]
+    caveat = None
+    if role_mismatch:
+        caveat = (f"{a['name']} ({a['position']}) and {b['name']} ({b['position']}) play different positions - "
+                  "a raw stat comparison may not be meaningful. Consider find_similar_players within a role "
+                  "peer group instead of a direct head-to-head.")
+    return {"player_a": a, "player_b": b, "diff_a_minus_b": diff, "role_mismatch": role_mismatch, "caveat": caveat}

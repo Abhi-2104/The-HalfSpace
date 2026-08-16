@@ -22,7 +22,40 @@ visible, not silently degraded (see project spec §8).
 
 ## Status
 
-**Phases 1-4 (data layer, analytics, API, frontend) — done.**
+**Phases 1-5 (data layer, analytics, API, frontend, agent tool layer) — done.**
+
+Phase 5 built the agent's tool layer (`halfspace/agent/`) deliberately
+decoupled from which LLM ends up powering it - that's a real cost/quality
+decision (Ollama running locally, ₹0 but weaker at multi-step tool-calling
+and refusal behavior, vs the Claude API, paid but far more reliable) not yet
+made. What's real and tested now, independent of that choice:
+
+- `agent/tools.py` - every tool is a direct call into `halfspace.lookups` /
+  `halfspace.features`, the exact same functions the FastAPI routes call.
+  No separate DB access path for the agent (project spec §19/23) - enforced
+  by there being no SQL anywhere in the tools file, not just claimed.
+- `agent/llm.py` - an `LLMClient` Protocol the orchestrator depends on, plus
+  a `StubLLMClient` that runs a scripted sequence of responses. Lets the
+  orchestration logic be tested for real without committing to a model.
+- `agent/orchestrator.py` - the tool-call loop, with two guarantees enforced
+  in code, not just prompt wording: every tool call is recorded in
+  `provenance` (so any answer's claims can be traced to the exact call that
+  backed them), and if a tool result carries a `caveat` or `error` that the
+  LLM's final answer doesn't restate, it shows up in `unresolved_caveats` -
+  the orchestrator catches a dropped caveat even if the model itself misses
+  it. A loop-budget cap (6 rounds) means a stuck agent fails loudly instead
+  of hanging.
+
+`tests/test_agent.py` runs the real tool registry against the live dataset
+(only the LLM is stubbed) - including a genuine role-mismatch case (Messi
+vs a real qualifying goalkeeper from La Liga 2015/16, found by querying the
+live DB, not hardcoded) where the scripted final answer ignores the
+caveat and the test asserts the orchestrator catches it anyway. Building
+that test surfaced a real bug in the test itself: the first version queried
+for a goalkeeper's minutes across *all* three ingested competitions instead
+of scoping to La Liga 2015/16 specifically, so it kept finding a "qualifying"
+keeper who didn't actually qualify within that competition/season - fixed by
+joining through `match` to scope the aggregation correctly. 31/31 tests pass.
 
 Phase 3 added a real API surface over everything Phase 2 validated: player/team
 season profiles, role-aware similarity, head-to-head comparison (with a
@@ -106,7 +139,8 @@ not preemptively.
 ```
 halfspace/
   db.py                   canonical schema (SQLite)
-  api.py                  FastAPI surface (same tools the agent layer will call later)
+  api.py                  FastAPI surface
+  lookups.py               shared read queries - api.py AND agent/tools.py both call these, not two copies
   tactical.py              loads tactical_concepts.json
   tactical_concepts.json   19 concepts, each tagged with a confidence tier - not a DB table (too small to earn one)
   ingest/
@@ -115,11 +149,15 @@ halfspace/
     idsse.py               fetch + stream-parse DFL tracking XML, compute team compactness
   features/
     __init__.py            shared match-scoped logic (period-scoping, PPDA, progressive passes)
-    player.py               season per-90 profiles + role-aware similarity
-    team.py                 season PPDA/goals/shots aggregation
+    player.py               season per-90 profiles + role-aware similarity + compare_players
+    team.py                 season PPDA/goals/shots aggregation + compare_teams
     sequences.py            counterattack heuristic detector
     shot_quality.py         xG-lite logistic regression model
     spatial.py               reads tracking_team_match (SkillCorner + IDSSE)
+  agent/
+    tools.py                tool registry - wraps lookups/features, no direct DB access
+    llm.py                   LLMClient protocol + StubLLMClient (real model not yet wired in)
+    orchestrator.py          tool-call loop, provenance tracking, caveat enforcement
 scripts/
   ingest_match.py          CLI: ingest one StatsBomb match by id
   ingest_competition.py    CLI: bulk-ingest a full competition/season, idempotent
@@ -132,6 +170,7 @@ tests/
   test_analytics.py        known-fact checks (Suárez, Messi/Neymar, Spain's press...)
   test_spatial.py          plausible-range checks on tracking data
   test_api.py              endpoint tests against the live dataset
+  test_agent.py            orchestrator tests - real tools, scripted (stub) LLM
   fixtures/                 small, real, committed StatsBomb JSON (no network needed for tests)
 frontend/                  React + Vite + TypeScript, reads the API above, no mocked data
   src/lib/api.ts            typed client, one function per endpoint
