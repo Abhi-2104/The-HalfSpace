@@ -7,9 +7,20 @@ import sqlite3
 
 from halfspace.features import ppda
 
+# Same rationale as halfspace.features.player._profile_cache: this computes PPDA
+# per match in a Python loop over every match in the competition/season (380 for
+# La Liga), measured at 4+ seconds uncached. Events are static between ingestion
+# runs, so process-lifetime caching is a real fix - restart the server after
+# re-ingesting to pick up new data.
+_profile_cache: dict[tuple[int, int], list[dict]] = {}
+
 
 def season_team_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int) -> list[dict]:
     """PPDA + shot/goal volume per team, averaged across their matches in this competition/season."""
+    cache_key = (competition_id, season_id)
+    if cache_key in _profile_cache:
+        return _profile_cache[cache_key]
+
     matches = conn.execute(
         "SELECT id, home_team_id, away_team_id FROM match WHERE competition_id = ? AND season_id = ?",
         (competition_id, season_id),
@@ -56,4 +67,5 @@ def season_team_profiles(conn: sqlite3.Connection, competition_id: int, season_i
             "low_sample": b["matches"] < 4,
         })
     out.sort(key=lambda t: t["avg_ppda"] if t["avg_ppda"] is not None else 999)
+    _profile_cache[cache_key] = out
     return out
