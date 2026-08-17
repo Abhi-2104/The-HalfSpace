@@ -22,6 +22,33 @@ visible, not silently degraded (see project spec §8).
 
 ## Status
 
+**Phases 1-6 done** (data, analytics, API, frontend, agent tool layer, and the
+"next level" pass: 360 spatial data, real pitch visuals, beginner curve).
+
+### Phase 6 — the next level
+
+- **StatsBomb 360 freeze-frames** (free, ~459k frames across 146 matches):
+  every visible player's real on-pitch position at each event. The signature
+  interaction — click a shot → see exactly where all 22 players stood the
+  instant it was taken ("what made this chance?"). Real spatial data without a
+  paid tracking feed.
+- **Real pitch visuals** (`frontend/src/components/pitch/`, all SVG/React):
+  a `<Pitch>` primitive with heatmaps (touch/territory), pass networks (nodes
+  at average position, edges by pass volume, honest first-substitution
+  cutoff), an xG-sized shot map, and the 360 freeze-frame render with the
+  camera visible-area drawn faint.
+- **Fresher data**: added **Copa América 2024** and **Women's Euro 2025**
+  (StatsBomb's newest open release) — now **558 matches / ~1.9M events**, up
+  from 495.
+- **Beginner curve**: a Beginner/Analyst mode toggle (same data, two depths)
+  and an inline "?" explainer on every metric — plain-English in beginner
+  mode, method notes in analyst mode, linking through to the tactical
+  ontology. Jargon is always one tap from a real explanation.
+- **36/36 tests pass** against the real dataset, including
+  `tests/test_pitch.py` (heatmap binning, pass-network integrity, xG shot
+  data, 360 freeze-frame round-trip). Verified in-browser against a fresh
+  Women's Euro 2025 match (Spain 6-2 Belgium).
+
 **Phases 1-5 (data layer, analytics, API, frontend, agent tool layer) — done.**
 
 Phase 5 built the agent's tool layer (`halfspace/agent/`) deliberately
