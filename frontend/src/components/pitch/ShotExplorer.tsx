@@ -4,6 +4,7 @@ import { api, type ShotXg, type FreezeFrame } from "../../lib/api";
 import { Pitch } from "./Pitch";
 import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
+import { MetricInfo } from "../MetricInfo";
 
 /**
  * The signature "what made this chance?" interaction. Left: xG shot map for the
@@ -40,7 +41,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
       <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="font-display text-lg font-bold text-ink-0">Shot map</h3>
-          <span className="font-mono text-[10px] uppercase tracking-wide text-ink-2">dot size = xG</span>
+          <span className="flex items-center font-mono text-[10px] uppercase tracking-wide text-ink-2">dot size = xG<MetricInfo metric="xg" /></span>
         </div>
         {shots ? (
           <Pitch>

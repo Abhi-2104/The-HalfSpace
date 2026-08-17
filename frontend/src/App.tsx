@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
+import { ModeProvider } from "./lib/mode";
 import { Nav } from "./components/Nav";
 import { PitchTexture } from "./components/PitchTexture";
 import { PageTransition } from "./components/PageTransition";
@@ -34,12 +35,14 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <PitchTexture />
-      <Nav />
-      <main>
-        <AnimatedRoutes />
-      </main>
-    </BrowserRouter>
+    <ModeProvider>
+      <BrowserRouter>
+        <PitchTexture />
+        <Nav />
+        <main>
+          <AnimatedRoutes />
+        </main>
+      </BrowserRouter>
+    </ModeProvider>
   );
 }

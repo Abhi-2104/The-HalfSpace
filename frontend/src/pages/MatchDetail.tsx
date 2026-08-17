@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api, type MatchDetailInfo, type MatchProfile, type Counterattack, type PassNetwork } from "../lib/api";
 import { CompareBar } from "../components/CompareBar";
 import { CoverageStrip } from "../components/CoverageStrip";
+import { MetricInfo } from "../components/MetricInfo";
 import { ShotExplorer } from "../components/pitch/ShotExplorer";
 import { Pitch } from "../components/pitch/Pitch";
 import { PassNetworkLayer } from "../components/pitch/PassNetworkLayer";
@@ -63,7 +64,7 @@ export function MatchDetail() {
         {/* pass network */}
         <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-ink-0">Pass network</h2>
+            <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Pass network<MetricInfo metric="pass_network" /></h2>
             <div className="flex rounded-sm border border-pitch-700 font-mono text-[11px] uppercase">
               {(["home", "away"] as const).map((side) => (
                 <button key={side} onClick={() => setNetTeam(side)}
@@ -81,8 +82,8 @@ export function MatchDetail() {
         <div className="space-y-8">
           {ppdaHome != null && ppdaAway != null && (
             <div>
-              <h2 className="font-display text-lg font-bold text-ink-0">Pressing intensity (PPDA)</h2>
-              <p className="mb-3 text-xs text-ink-2">Lower = more aggressive press. See Tactics → High press.</p>
+              <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Pressing intensity (PPDA)<MetricInfo metric="ppda" /></h2>
+              <p className="mb-3 text-xs text-ink-2">Lower = more aggressive press.</p>
               <CompareBar label="PPDA" nameA={match.home_team} nameB={match.away_team} valueA={ppdaHome} valueB={ppdaAway} lowerIsBetter />
             </div>
           )}
@@ -94,7 +95,7 @@ export function MatchDetail() {
           )}
 
           <div>
-            <h2 className="font-display text-lg font-bold text-ink-0">Counterattacks</h2>
+            <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Counterattacks<MetricInfo metric="counterattack" /></h2>
             <p className="mb-3 text-xs text-ink-2">Heuristic detection, medium confidence — see method on each candidate.</p>
             {sequences && sequences.length === 0 && <p className="text-sm text-ink-2">None detected.</p>}
             <ul className="space-y-2">
