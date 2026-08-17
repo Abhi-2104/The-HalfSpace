@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, type SimilarPlayersResult, type Heatmap } from "../lib/api";
 import { Pitch } from "../components/pitch/Pitch";
 import { HeatmapLayer } from "../components/pitch/HeatmapLayer";
+import { MetricInfo } from "../components/MetricInfo";
 
 const FEATURE_LABELS: Record<string, string> = {
   goals_p90: "Goals/90", shots_p90: "Shots/90", key_passes_p90: "Key passes/90",
@@ -50,7 +51,7 @@ export function PlayerDetail() {
         </div>
         <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-baseline justify-between">
-            <h2 className="font-display text-lg font-bold text-ink-0">Touch heatmap</h2>
+            <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Touch heatmap<MetricInfo metric="heatmap" /></h2>
             <span className="font-mono text-[10px] uppercase tracking-wide text-ink-2">attacking →</span>
           </div>
           {heatmap ? (
