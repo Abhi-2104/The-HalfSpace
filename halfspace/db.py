@@ -4,10 +4,15 @@ Canonical schema. SQLite for the vertical-slice/dev phase.
 # when similarity search needs to scale past "fits in memory" or multi-writer access
 # matters - schema below is plain SQL so the migration is a port, not a rewrite.
 """
+import os
 import sqlite3
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "halfspace.db"
+# HALFSPACE_DB env overrides the default location - lets a verification/CI run
+# point at a throwaway DB without touching the real one, and lets deployment
+# put the DB wherever it wants.
+DEFAULT_DB_PATH = Path(os.environ.get("HALFSPACE_DB",
+                       Path(__file__).resolve().parent.parent / "data" / "halfspace.db"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS data_source (
@@ -80,6 +85,20 @@ CREATE TABLE IF NOT EXISTS event (
 );
 CREATE INDEX IF NOT EXISTS idx_event_match ON event(match_id);
 CREATE INDEX IF NOT EXISTS idx_event_player ON event(player_id);
+
+-- StatsBomb 360 freeze-frames: one row per event that has 360 coverage.
+-- freeze_frame/visible_area stored as JSON text rather than exploded into a
+-- row-per-visible-player: ~2900 events x ~12 players/match would be millions
+-- of rows across the dataset for no query benefit - we always want a whole
+-- frame at once (render all players for an event), never one player's dot in
+-- isolation. Keyed by event_id so the shot -> "who was where" lookup is O(1).
+CREATE TABLE IF NOT EXISTS freeze_frame (
+    event_id TEXT PRIMARY KEY REFERENCES event(id),
+    match_id INTEGER NOT NULL REFERENCES match(id),
+    freeze_frame TEXT NOT NULL,   -- JSON: [{teammate, actor, keeper, location:[x,y]}, ...]
+    visible_area TEXT             -- JSON: [x1,y1,x2,y2,...] camera-visible polygon
+);
+CREATE INDEX IF NOT EXISTS idx_freeze_match ON freeze_frame(match_id);
 
 CREATE TABLE IF NOT EXISTS player_match_minutes (
     match_id INTEGER NOT NULL REFERENCES match(id),

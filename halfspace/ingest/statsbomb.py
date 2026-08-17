@@ -47,6 +47,31 @@ def fetch_competition_season_names(competition_id: int, season_id: int) -> tuple
     return f"competition_{competition_id}", f"season_{season_id}"
 
 
+def _fetch_360(match_id: int) -> list | None:
+    """Fetch a match's 360 freeze-frames. Returns None (not an error) if the
+    match has no 360 coverage - most historical matches don't; the tournaments
+    that do (WC2022, Euro 2024, Copa America 2024, Women's Euro 2025) are the
+    point of ingesting it. HTTP 404 -> None, cached as an empty marker so we
+    don't re-hit the network on every re-run for a match we know lacks 360."""
+    import urllib.error
+    cache_path = RAW_DIR / "three-sixty" / f"{match_id}.json"
+    if cache_path.exists():
+        text = cache_path.read_text()
+        return json.loads(text) if text.strip() else None
+    try:
+        with urlopen(f"{BASE}/three-sixty/{match_id}.json") as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text("")  # negative-cache marker: known to have no 360
+            return None
+        raise
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(data))
+    return data
+
+
 def _mmss_to_min(s: str) -> float:
     m, sec = s.split(":")
     return int(m) + int(sec) / 60
@@ -65,7 +90,8 @@ def _ensure_data_source(conn: sqlite3.Connection) -> int:
 
 
 def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = None, lineups_path: Path = None,
-                  competition_id: int = None, season_id: int = None, match_meta: dict = None) -> None:
+                  competition_id: int = None, season_id: int = None, match_meta: dict = None,
+                  three_sixty_path: Path = None, fetch_360: bool = False) -> None:
     """
     Load one match's events + lineups into the canonical schema.
 
@@ -76,6 +102,10 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
     from the competition's match-list endpoint. Without it, home/away and score
     are left NULL rather than guessed from event order (event order is not
     reliably home-team-first - guessing produced wrong scores before this fix).
+
+    fetch_360: also pull 360 freeze-frames (only tournaments with 360 coverage
+    have them; a match without 360 just gets has_360=0, not an error).
+    three_sixty_path: load 360 from a local file instead (tests/offline).
     """
     events = (json.loads(events_path.read_text()) if events_path
               else _fetch_json_cached(f"{BASE}/events/{match_id}.json", RAW_DIR / "events" / f"{match_id}.json"))
@@ -177,9 +207,29 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
                     (match_id, p["player_id"], team["team_id"], total, position),
                 )
 
+    # 360 freeze-frames, if requested and available for this match
+    has_360 = 0
+    frames = None
+    if three_sixty_path:
+        frames = json.loads(three_sixty_path.read_text())
+    elif fetch_360:
+        frames = _fetch_360(match_id)
+    if frames:
+        event_ids = {e["id"] for e in events}
+        for fr in frames:
+            eid = fr.get("event_uuid")
+            if eid not in event_ids:  # 360 frames reference events; skip any orphan
+                continue
+            conn.execute(
+                """INSERT OR REPLACE INTO freeze_frame (event_id, match_id, freeze_frame, visible_area)
+                   VALUES (?, ?, ?, ?)""",
+                (eid, match_id, json.dumps(fr.get("freeze_frame", [])), json.dumps(fr.get("visible_area", []))),
+            )
+        has_360 = 1
+
     conn.execute(
         """INSERT OR REPLACE INTO data_coverage (match_id, has_events, has_360, has_tracking, tracking_variant)
-           VALUES (?, 1, 0, 0, NULL)""",
-        (match_id,),
+           VALUES (?, 1, ?, 0, NULL)""",
+        (match_id, has_360),
     )
     conn.commit()

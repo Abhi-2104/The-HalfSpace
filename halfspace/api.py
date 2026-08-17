@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from halfspace import db, lookups, tactical
 from halfspace.features import player as player_features
 from halfspace.features import team as team_features
-from halfspace.features import sequences, spatial
+from halfspace.features import sequences, spatial, pitch
 
 
 def warm_caches():
@@ -165,3 +165,46 @@ def tactical_concept(slug: str):
     if not concept:
         raise HTTPException(404, f"unknown tactical concept '{slug}'")
     return concept
+
+
+# --- pitch visualization endpoints (6B) ---
+
+@app.get("/matches/{match_id}/shots-xg")
+def match_shots_xg(match_id: int):
+    """Shots with xG-lite score + freeze-frame availability - drives the upgraded shot map."""
+    conn = db.connect()
+    if not lookups.get_match(conn, match_id):
+        raise HTTPException(404, f"match {match_id} not ingested yet")
+    return {"match_id": match_id, "shots": pitch.match_shots_with_xg(conn, match_id)}
+
+
+@app.get("/events/{event_id}/freeze-frame")
+def event_freeze_frame(event_id: str):
+    """360 freeze-frame for one event (usually a shot): every visible player's position."""
+    frame = pitch.shot_freeze_frame(db.connect(), event_id)
+    if not frame:
+        raise HTTPException(404, f"no 360 freeze-frame for event {event_id}")
+    return frame
+
+
+@app.get("/matches/{match_id}/players/{player_id}/heatmap")
+def player_heatmap(match_id: int, player_id: int):
+    return pitch.player_heatmap(db.connect(), match_id, player_id)
+
+
+@app.get("/competitions/{competition_id}/seasons/{season_id}/players/{player_id}/heatmap")
+def season_player_heatmap(competition_id: int, season_id: int, player_id: int):
+    return pitch.season_player_heatmap(db.connect(), competition_id, season_id, player_id)
+
+
+@app.get("/matches/{match_id}/teams/{team_id}/heatmap")
+def team_heatmap(match_id: int, team_id: int):
+    return pitch.team_heatmap(db.connect(), match_id, team_id)
+
+
+@app.get("/matches/{match_id}/teams/{team_id}/pass-network")
+def pass_network(match_id: int, team_id: int):
+    conn = db.connect()
+    if not lookups.get_match(conn, match_id):
+        raise HTTPException(404, f"match {match_id} not ingested yet")
+    return pitch.pass_network(conn, match_id, team_id)

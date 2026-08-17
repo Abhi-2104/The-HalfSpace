@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { api, type Overview, type Shot } from "../lib/api";
+import { api, type Overview, type ShotXg } from "../lib/api";
 import { StatTile } from "../components/StatTile";
-import { PitchShotMap } from "../components/PitchShotMap";
+import { Pitch } from "../components/pitch/Pitch";
+import { ShotMapLayer } from "../components/pitch/ShotMapLayer";
 import { CoverageStrip } from "../components/CoverageStrip";
 
 const WC2022_FINAL_ID = 3869685;
@@ -11,11 +12,11 @@ const ARGENTINA_TEAM_ID = 779;
 
 export function Explore() {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [shots, setShots] = useState<Shot[] | null>(null);
+  const [shots, setShots] = useState<ShotXg[] | null>(null);
 
   useEffect(() => {
     api.overview().then(setOverview).catch(() => {});
-    api.matchShots(WC2022_FINAL_ID).then((r) => setShots(r.shots)).catch(() => {});
+    api.shotsXg(WC2022_FINAL_ID).then((r) => setShots(r.shots)).catch(() => {});
   }, []);
 
   return (
@@ -75,7 +76,13 @@ export function Explore() {
           </Link>
         </div>
         <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
-          {shots ? <PitchShotMap shots={shots} homeTeamId={ARGENTINA_TEAM_ID} /> : <div className="aspect-[3/2]" />}
+          {shots ? (
+            <Pitch>
+              <ShotMapLayer shots={shots} homeTeamId={ARGENTINA_TEAM_ID} />
+            </Pitch>
+          ) : (
+            <div className="aspect-[3/2]" />
+          )}
         </div>
       </motion.div>
     </div>
