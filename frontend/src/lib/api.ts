@@ -201,4 +201,57 @@ export const api = {
   tracking: (provider?: string) => get<{ rows: TrackingRow[] }>("/tracking", provider ? { provider } : undefined),
   tacticalConcepts: () => get<{ concepts: TacticalConceptSummary[] }>("/tactical-concepts"),
   tacticalConcept: (slug: string) => get<TacticalConcept>(`/tactical-concepts/${slug}`),
+
+  shotsXg: (matchId: number) => get<{ match_id: number; shots: ShotXg[] }>(`/matches/${matchId}/shots-xg`),
+  freezeFrame: (eventId: string) => get<FreezeFrame>(`/events/${eventId}/freeze-frame`),
+  playerHeatmap: (matchId: number, playerId: number) => get<Heatmap>(`/matches/${matchId}/players/${playerId}/heatmap`),
+  seasonPlayerHeatmap: (competitionId: number, seasonId: number, playerId: number) =>
+    get<Heatmap>(`/competitions/${competitionId}/seasons/${seasonId}/players/${playerId}/heatmap`),
+  teamHeatmap: (matchId: number, teamId: number) => get<Heatmap>(`/matches/${matchId}/teams/${teamId}/heatmap`),
+  passNetwork: (matchId: number, teamId: number) => get<PassNetwork>(`/matches/${matchId}/teams/${teamId}/pass-network`),
 };
+
+export interface ShotXg extends Shot {
+  xg: number | null;
+  has_freeze_frame: boolean;
+}
+
+export interface FreezeFramePlayer {
+  teammate: boolean;
+  actor: boolean;
+  keeper: boolean;
+  location: [number, number];
+}
+
+export interface FreezeFrame {
+  event_id: string;
+  freeze_frame: FreezeFramePlayer[];
+  visible_area: number[];
+}
+
+export interface Heatmap {
+  bins_x: number;
+  bins_y: number;
+  grid: number[][];
+  peak: number;
+  touches?: number;
+  actions?: number;
+}
+
+export interface PassNode {
+  player_id: number;
+  name: string | null;
+  x: number;
+  y: number;
+  passes: number;
+}
+
+export interface PassNetwork {
+  match_id: number;
+  team_id: number;
+  cutoff_minute: number | null;
+  cutoff_note: string;
+  nodes: PassNode[];
+  edges: { a: number; b: number; passes: number }[];
+  recipient_note: string;
+}

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { api, type SimilarPlayersResult } from "../lib/api";
+import { api, type SimilarPlayersResult, type Heatmap } from "../lib/api";
+import { Pitch } from "../components/pitch/Pitch";
+import { HeatmapLayer } from "../components/pitch/HeatmapLayer";
 
 const FEATURE_LABELS: Record<string, string> = {
   goals_p90: "Goals/90", shots_p90: "Shots/90", key_passes_p90: "Key passes/90",
@@ -14,12 +16,15 @@ export function PlayerDetail() {
   const competitionId = Number(params.get("competition_id"));
   const seasonId = Number(params.get("season_id"));
   const [result, setResult] = useState<SimilarPlayersResult | null>(null);
+  const [heatmap, setHeatmap] = useState<Heatmap | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setResult(null);
+    setHeatmap(null);
     setError(null);
     api.similarPlayers(competitionId, seasonId, Number(playerId)).then(setResult).catch((e) => setError(e.message));
+    api.seasonPlayerHeatmap(competitionId, seasonId, Number(playerId)).then(setHeatmap).catch(() => setHeatmap(null));
   }, [playerId, competitionId, seasonId]);
 
   if (error) return <div className="mx-auto max-w-4xl px-6 py-12 text-clay">{error}</div>;
@@ -32,15 +37,32 @@ export function PlayerDetail() {
       <h1 className="font-display text-4xl font-bold text-ink-0">{target.name}</h1>
       <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {target.minutes} min</p>
 
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {Object.entries(FEATURE_LABELS).map(([key, label]) => (
-          <div key={key} className="rounded-sm border border-pitch-800 bg-pitch-900 p-3">
-            <div className="font-mono text-lg font-semibold tabular-nums text-ink-0">
-              {(target as unknown as Record<string, number>)[key].toFixed(2)}
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 lg:content-start">
+          {Object.entries(FEATURE_LABELS).map(([key, label]) => (
+            <div key={key} className="rounded-sm border border-pitch-800 bg-pitch-900 p-3">
+              <div className="font-mono text-lg font-semibold tabular-nums text-ink-0">
+                {(target as unknown as Record<string, number>)[key].toFixed(2)}
+              </div>
+              <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-2">{label}</div>
             </div>
-            <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-2">{label}</div>
+          ))}
+        </div>
+        <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="font-display text-lg font-bold text-ink-0">Touch heatmap</h2>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-ink-2">attacking →</span>
           </div>
-        ))}
+          {heatmap ? (
+            heatmap.peak ? (
+              <Pitch><HeatmapLayer heatmap={heatmap} /></Pitch>
+            ) : (
+              <p className="py-12 text-center text-sm text-ink-2">No touch data.</p>
+            )
+          ) : (
+            <div className="aspect-[3/2]" />
+          )}
+        </div>
       </div>
 
       <h2 className="mt-12 font-display text-2xl font-bold text-ink-0">Most similar players</h2>
