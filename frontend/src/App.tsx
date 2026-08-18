@@ -7,6 +7,7 @@ import { PageTransition } from "./components/PageTransition";
 import { Explore } from "./pages/Explore";
 import { Matches } from "./pages/Matches";
 import { MatchDetail } from "./pages/MatchDetail";
+import { MatchStory } from "./pages/MatchStory";
 import { Players } from "./pages/Players";
 import { PlayerDetail } from "./pages/PlayerDetail";
 import { Teams } from "./pages/Teams";
@@ -22,6 +23,7 @@ function AnimatedRoutes() {
         <Route path="/" element={<PageTransition><Explore /></PageTransition>} />
         <Route path="/matches" element={<PageTransition><Matches /></PageTransition>} />
         <Route path="/matches/:matchId" element={<PageTransition><MatchDetail /></PageTransition>} />
+        <Route path="/matches/:matchId/story" element={<PageTransition><MatchStory /></PageTransition>} />
         <Route path="/players" element={<PageTransition><Players /></PageTransition>} />
         <Route path="/players/:playerId" element={<PageTransition><PlayerDetail /></PageTransition>} />
         <Route path="/teams" element={<PageTransition><Teams /></PageTransition>} />
