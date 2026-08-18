@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, type MatchDetailInfo, type MatchProfile, type Counterattack, type PassNetwork } from "../lib/api";
 import { CompareBar } from "../components/CompareBar";
 import { CoverageStrip } from "../components/CoverageStrip";
@@ -54,6 +54,11 @@ export function MatchDetail() {
       <div className="mt-3">
         <CoverageStrip hasEvents={!!profile?.coverage?.has_events} hasTracking={!!profile?.coverage?.has_tracking} has360={!!profile?.coverage?.has_360} />
       </div>
+
+      <Link to={`/matches/${id}/story`}
+        className="mt-4 inline-flex items-center gap-2 rounded-sm border border-marker/50 bg-marker/10 px-3 py-2 font-mono text-xs uppercase tracking-wide text-marker-bright transition hover:bg-marker/20">
+        ▶ Walk me through this match
+      </Link>
 
       {/* signature interaction: shot map + freeze-frame */}
       <div className="mt-10">
