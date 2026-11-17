@@ -8,6 +8,8 @@ StatsBomb pitch is 120 x 80 (x: 0->120 attacking right, y: 0->80).
 import json
 import sqlite3
 
+from halfspace import framepack
+
 PITCH_X = 120.0
 PITCH_Y = 80.0
 
@@ -141,17 +143,21 @@ def shot_freeze_frame(conn: sqlite3.Connection, event_id: str) -> dict | None:
     ).fetchone()
     if not row:
         return None
-    return {
-        "event_id": event_id,
-        "freeze_frame": json.loads(row["freeze_frame"]),
-        "visible_area": json.loads(row["visible_area"]) if row["visible_area"] else [],
-    }
+    # packed blobs (framepack); rows not yet migrated by scripts/pack_frames.py are still JSON text
+    if isinstance(row["freeze_frame"], bytes):
+        players, area = framepack.unpack_players(row["freeze_frame"]), framepack.unpack_area(row["visible_area"] or b"")
+    else:
+        players = json.loads(row["freeze_frame"])
+        area = json.loads(row["visible_area"]) if row["visible_area"] else []
+    return {"event_id": event_id, "freeze_frame": players, "visible_area": area}
 
 
 def match_shots_with_xg(conn: sqlite3.Connection, match_id: int) -> list[dict]:
-    """Shots with our xG-lite score + whether a 360 freeze-frame exists for each.
+    """Shots with our xG (v2 when built, else xG-lite) + whether a 360 freeze-frame exists for each.
     Drives the upgraded shot map (dot size = xG, click -> freeze-frame)."""
     from halfspace.features import shot_quality
+    from halfspace.models import xg as xg_v2
+    v2 = xg_v2.stored_xg(match_id)
     rows = conn.execute(
         """SELECT e.id, e.team_id, t.name AS team_name, e.player_id, p.name AS player_name,
                   e.minute, e.second, e.x, e.y, e.outcome_name, e.body_part,
@@ -169,9 +175,11 @@ def match_shots_with_xg(conn: sqlite3.Connection, match_id: int) -> list[dict]:
     for r in rows:
         d = dict(r)
         d["has_freeze_frame"] = bool(r["has_freeze_frame"])
-        if model_ready and r["x"] is not None:
-            d["xg"] = round(shot_quality.score_shot(r["x"], r["y"], is_header=(r["body_part"] == "Head")), 3)
+        if r["id"] in v2:
+            d["xg"], d["xg_model"] = round(v2[r["id"]], 3), "v2"
+        elif model_ready and r["x"] is not None:
+            d["xg"], d["xg_model"] = round(shot_quality.score_shot(r["x"], r["y"], is_header=(r["body_part"] == "Head")), 3), "lite"
         else:
-            d["xg"] = None
+            d["xg"], d["xg_model"] = None, None
         out.append(d)
     return out

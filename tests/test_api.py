@@ -118,3 +118,11 @@ def test_tactical_concepts_list_and_detail(client):
 if __name__ == "__main__":
     import subprocess
     subprocess.run([sys.executable, "-m", "pytest", __file__, "-v"])
+
+
+def test_match_search_finds_el_clasico(client):
+    r = client.get("/matches/search", params={"team": "Barcelona", "opponent": "Real Madrid", "competition_id": 11, "season_id": 27})
+    ms = r.json()["matches"]
+    if not ms:
+        pytest.skip("La Liga 2015/16 not ingested")
+    assert len(ms) == 2 and {m["home_team"] for m in ms} == {"Barcelona", "Real Madrid"}  # home and away fixture

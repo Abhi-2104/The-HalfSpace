@@ -3,6 +3,8 @@ FastAPI surface. Thin: it calls halfspace.features, it doesn't reimplement logic
 this is also what the agent layer will call later (same tools, no separate DB access
 path for the agent - see project spec section 19/23).
 """
+import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from dataclasses import asdict
@@ -19,6 +21,7 @@ from halfspace.agent.orchestrator import Agent
 from halfspace.features import player as player_features
 from halfspace.features import team as team_features
 from halfspace.features import sequences, spatial, pitch
+from halfspace.api_models import router as models_router
 
 
 def warm_caches():
@@ -34,8 +37,20 @@ def warm_caches():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    warm_caches()
+    # Warm in the background so the API answers straight away, even while a long ingest is
+    # writing to the database. Requests that arrive first just compute their own profile.
+    async def _warm():
+        try:
+            await asyncio.to_thread(warm_caches)
+        except Exception as exc:  # a busy database must not stop the API from serving
+            print(f"cache warm-up skipped: {exc}")
+
+    # ponytail: opt-in (HALFSPACE_WARM=1). Scanning every season on a busy, growing database starved the
+    # request loop for minutes; profiles are cached after their first request anyway.
+    task = asyncio.create_task(_warm()) if os.environ.get("HALFSPACE_WARM") else None
     yield
+    if task:
+        task.cancel()
 
 
 app = FastAPI(
@@ -43,6 +58,7 @@ app = FastAPI(
     description="Real open football data: matches, players, teams, tactics and an analyst agent. By Abhijith Varma.",
     lifespan=lifespan,
 )
+app.include_router(models_router)
 
 # dev-only: frontend runs on Vite's default port, backend on uvicorn's.
 # Both are localhost, no real cross-origin trust boundary to defend at this stage.
@@ -99,6 +115,13 @@ def overview():
 @app.get("/competitions")
 def competitions():
     return {"competitions": lookups.list_competitions(db.connect())}
+
+
+@app.get("/matches/search")
+def search_matches(team: str, opponent: str | None = None, competition_id: int | None = None,
+                   season_id: int | None = None, limit: int = Query(12, le=50)):
+    """Find matches by team name (substring), optionally vs an opponent, optionally within one competition/season."""
+    return {"matches": lookups.find_matches(db.connect(), team, opponent, competition_id, season_id, limit)}
 
 
 @app.get("/matches")

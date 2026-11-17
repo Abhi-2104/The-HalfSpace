@@ -12,6 +12,7 @@ from halfspace import db, lookups, tactical
 from halfspace.features import player as player_features
 from halfspace.features import team as team_features
 from halfspace.features import sequences, spatial
+from halfspace.models import report, roles, serve, xg
 
 
 @dataclass
@@ -52,6 +53,11 @@ def list_competitions() -> dict:
 @_wrap
 def list_matches(competition_id: int, season_id: int) -> dict:
     return {"matches": lookups.list_matches(db.connect(), competition_id, season_id)}
+
+
+@_wrap
+def find_matches(team: str, opponent: str = None, competition_id: int = None, season_id: int = None) -> dict:
+    return {"matches": lookups.find_matches(db.connect(), team, opponent, competition_id, season_id, 12)}
 
 
 @_wrap
@@ -121,12 +127,66 @@ def get_tactical_concepts() -> dict:
 @_wrap
 def get_tactical_concept(slug: str) -> dict:
     concept = tactical.get_concept(slug)
-    return concept or {"error": f"unknown tactical concept '{slug}'"}
+    if not concept:
+        return {"error": f"unknown tactical concept '{slug}'"}
+    return {k: v for k, v in concept.items() if k != "detection_method"}  # code paths are for developers, not for answers
+
+
+@_wrap
+def get_match_momentum(match_id: int) -> dict:
+    return serve.match_momentum_summary(db.connect(), match_id) or {"error": f"no momentum data for match {match_id}"}
+
+
+@_wrap
+def get_player_profile(competition_id: int, season_id: int, player_id: int) -> dict:
+    return serve.player_profile(db.connect(), competition_id, season_id, player_id) or {
+        "error": "no profile for this player in this competition/season (needs 300+ minutes)"}
+
+
+@_wrap
+def get_leaders(competition_id: int, season_id: int, metric: str = "npxg", position_group: str = None) -> dict:
+    return serve.leaders(db.connect(), competition_id, season_id, metric, position_group, 10)
+
+
+@_wrap
+def get_team_patterns(competition_id: int, season_id: int, kind: str) -> dict:
+    return serve.team_patterns(db.connect(), competition_id, season_id, kind, 10)
+
+
+@_wrap
+def get_similar_team_styles(team_id: int, competition_id: int, season_id: int) -> dict:
+    return serve.similar_styles(db.connect(), team_id, competition_id, season_id, 5)
+
+
+@_wrap
+def get_goalkeepers(competition_id: int, season_id: int) -> dict:
+    return serve.goalkeepers(db.connect(), competition_id, season_id, 10)
+
+
+@_wrap
+def get_plays_like(competition_id: int, season_id: int, player_id: int) -> dict:
+    return roles.similar_players(db.connect(), player_id, competition_id, season_id, 6)
+
+
+@_wrap
+def get_match_report(match_id: int) -> dict:
+    out = report.match_report(db.connect(), match_id)
+    return {"report": out["text"], "note": out["note"]} if out else {"error": f"no report for match {match_id}"}
+
+
+@_wrap
+def explain_shot(event_id: str) -> dict:
+    return xg.explain_event(event_id) or {"error": f"no shot {event_id}"}
 
 
 TOOLS: list[ToolSpec] = [
     ToolSpec("list_competitions", "List every ingested competition/season with match counts.", {"type": "object", "properties": {}}, list_competitions),
-    ToolSpec("list_matches", "List matches in a competition/season.",
+    ToolSpec("find_matches", "Find matches by team name (substring), optionally vs an opponent and within a competition/season. "
+             "Use this to get a match id, e.g. team='Barcelona', opponent='Real Madrid'.",
+             {"type": "object", "properties": {"team": {"type": "string"}, "opponent": {"type": "string"},
+                                                "competition_id": {"type": "integer"}, "season_id": {"type": "integer"}}, "required": ["team"]},
+             find_matches),
+    ToolSpec("list_matches", "List the first 25 matches of a competition/season (use find_matches to look for a specific game).",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}}, "required": ["competition_id", "season_id"]},
              list_matches),
     ToolSpec("get_match", "Basic info for one match: teams, score, date.",
@@ -165,6 +225,36 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {}}, get_tactical_concepts),
     ToolSpec("get_tactical_concept", "Full detail for one tactical concept by slug.",
              {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"]}, get_tactical_concept),
+    ToolSpec("get_match_momentum", "Who was on top by minute (positive = home on top), peaks, key moments and total xG for one match.",
+             {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_momentum),
+    ToolSpec("get_player_profile", "Scouting card: per-90 stats (xG, xA, xT...), sample-adjusted values and percentiles vs position peers.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
+                                                "player_id": {"type": "integer"}}, "required": ["competition_id", "season_id", "player_id"]},
+             get_player_profile),
+    ToolSpec("get_leaders", "Top 10 players by a metric (npxg, xa, xt, goals_np, shots_np, passes, pass_pct, dribbles, carries, "
+             "pressures, interceptions, recoveries), optional position_group GK/DEF/MID/ATT, adjusted for sample size.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
+                                                "metric": {"type": "string"}, "position_group": {"type": "string"}},
+              "required": ["competition_id", "season_id"]}, get_leaders),
+    ToolSpec("get_team_patterns", "Teams ranked by xG per counterattack, corner or free kick (kind: counter|corner|free_kick), provider-tagged.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
+                                                "kind": {"type": "string"}}, "required": ["competition_id", "season_id", "kind"]},
+             get_team_patterns),
+    ToolSpec("get_similar_team_styles", "A team's playing-style archetype and the most similar team-seasons in the data.",
+             {"type": "object", "properties": {"team_id": {"type": "integer"}, "competition_id": {"type": "integer"},
+                                                "season_id": {"type": "integer"}}, "required": ["team_id", "competition_id", "season_id"]},
+             get_similar_team_styles),
+    ToolSpec("get_goalkeepers", "Goalkeepers ranked by goals prevented (post-shot xG minus goals conceded), noisy under ~150 shots.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}},
+              "required": ["competition_id", "season_id"]}, get_goalkeepers),
+    ToolSpec("get_plays_like", "A player's data-driven role and the players who played most like them, across all competitions.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
+                                                "player_id": {"type": "integer"}}, "required": ["competition_id", "season_id", "player_id"]},
+             get_plays_like),
+    ToolSpec("get_match_report", "A short written match report: xG, who was on top when, goals and big chances, top threat creators.",
+             {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_report),
+    ToolSpec("explain_shot", "Why a shot has its xG: top factors (approximate attribution).",
+             {"type": "object", "properties": {"event_id": {"type": "string"}}, "required": ["event_id"]}, explain_shot),
 ]
 
 TOOLS_BY_NAME: dict[str, ToolSpec] = {t.name: t for t in TOOLS}

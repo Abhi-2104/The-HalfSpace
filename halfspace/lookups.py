@@ -92,3 +92,26 @@ def get_match_shots(conn: sqlite3.Connection, match_id: int) -> list[dict]:
         (match_id,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def find_matches(conn: sqlite3.Connection, team: str, opponent: str | None = None, competition_id: int | None = None,
+                 season_id: int | None = None, limit: int = 12) -> list[dict]:
+    """Matches involving `team` (substring of the team name), optionally against `opponent`, optionally in one
+    competition/season. Lets callers find 'Barcelona vs Real Madrid' without paging through a 380-match list."""
+    like = lambda s: f"%{s.strip()}%"
+    q = ("SELECT m.id, m.match_date, m.home_score, m.away_score, ht.name AS home_team, at.name AS away_team, "
+         "m.competition_id, m.season_id FROM match m JOIN team ht ON ht.id = m.home_team_id JOIN team at ON at.id = m.away_team_id WHERE ")
+    args: list = []
+    if opponent:
+        q += "((ht.name LIKE ? AND at.name LIKE ?) OR (ht.name LIKE ? AND at.name LIKE ?))"
+        args += [like(team), like(opponent), like(opponent), like(team)]
+    else:
+        q += "(ht.name LIKE ? OR at.name LIKE ?)"
+        args += [like(team), like(team)]
+    if competition_id is not None:
+        q += " AND m.competition_id = ?"
+        args.append(competition_id)
+    if season_id is not None:
+        q += " AND m.season_id = ?"
+        args.append(season_id)
+    return [dict(r) for r in conn.execute(q + " ORDER BY m.match_date LIMIT ?", (*args, limit)).fetchall()]
