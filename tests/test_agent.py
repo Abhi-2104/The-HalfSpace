@@ -117,7 +117,8 @@ def test_loop_budget_stops_instead_of_hanging(ready_db):
     answer = agent.run("infinite loop test")
 
     assert "couldn't reach a final answer" in answer.text
-    assert len(answer.provenance) == 6  # MAX_TOOL_ROUNDS
+    from halfspace.agent.orchestrator import MAX_TOOL_ROUNDS
+    assert len(answer.provenance) == MAX_TOOL_ROUNDS - 1  # the final round is an answer-only round, no tools run
 
 
 if __name__ == "__main__":
@@ -180,3 +181,107 @@ def test_ask_maps_provider_429(ask):
     from fastapi.testclient import TestClient
     app.dependency_overrides[get_llm] = lambda: Boom()
     assert TestClient(app).post("/agent/ask", json={"question": "hi"}).status_code == 429
+
+
+# --- free-tier hardening: tool-result shrinking and rate-limit waits ---
+
+def test_shrink_keeps_caveats_whole_and_marks_trimmed_lists():
+    from halfspace.agent.orchestrator import shrink
+    caveat = "x" * 400
+    res = {"players": [{"name": "A" * 300, "v": 1.23456789, "none": None} for _ in range(40)], "caveat": caveat}
+    out = shrink(res, 1500)
+    assert out["caveat"] == caveat                      # never truncated: the answer must restate it exactly
+    assert len(out["players"]) < 40 and "trimmed" in out
+    assert out["players"][0]["v"] == 1.235 and "none" not in out["players"][0]
+    assert shrink({"a": [1, 2]}, 1500) == {"a": [1, 2]}  # small results pass through untouched
+
+
+def test_older_tool_results_shrink_harder_than_the_latest_round():
+    from halfspace.agent.orchestrator import compact_for_llm
+    big = {"rows": [{"k": "v" * 100} for _ in range(60)]}
+    msgs = [{"role": "user", "content": "q"},
+            {"role": "assistant", "tool_calls": [{"name": "t", "arguments": {}}]}, {"role": "tool", "name": "t", "content": big},
+            {"role": "assistant", "tool_calls": [{"name": "t", "arguments": {}}]}, {"role": "tool", "name": "t", "content": big}]
+    out = compact_for_llm(msgs)
+    import json as _j
+    assert len(_j.dumps(out[2]["content"])) < len(_j.dumps(out[4]["content"])) <= 3200
+    assert msgs[2]["content"] is big                      # history itself untouched (provenance keeps the full result)
+
+
+def _limited(seconds):
+    import httpx
+    req = httpx.Request("POST", "http://x")
+    return httpx.HTTPStatusError("429", request=req, response=httpx.Response(
+        429, request=req, text=f'{{"error":{{"message":"Rate limit. Please try again in {seconds}s. Need more"}}}}'))
+
+
+def test_retry_after_parses_groq_message_and_header():
+    import httpx
+    from halfspace.agent.llm import retry_after
+    req = httpx.Request("POST", "http://x")
+    assert retry_after(httpx.Response(429, request=req, text="Please try again in 7.2s.")) == 7.2
+    assert retry_after(httpx.Response(429, request=req, text="try again in 850ms")) == 0.85
+    assert retry_after(httpx.Response(429, request=req, text="try again in 1m3s")) == 63
+    assert retry_after(httpx.Response(429, request=req, headers={"retry-after": "4"}, text="")) == 4
+    assert retry_after(httpx.Response(429, request=req, text="nothing")) == 10.0
+
+
+def test_fallback_waits_once_per_request_then_returns_429(monkeypatch):
+    import httpx
+    from halfspace.agent import llm
+    slept, clock = [], [100.0]
+    monkeypatch.setattr(llm.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(llm.time, "sleep", lambda s: (slept.append(s), clock.__setitem__(0, clock[0] + s)))
+
+    class Flaky:
+        def __init__(self, fail_times, secs):
+            self.n, self.fail, self.secs = 0, fail_times, secs
+
+        def chat(self, m, t):
+            self.n += 1
+            if self.n <= self.fail:
+                raise _limited(self.secs)
+            return LLMResponse(content="ok")
+
+    fb = llm.FallbackClient([Flaky(1, 5)])
+    llm.reset_waits(1)
+    assert fb.chat([], []).content == "ok" and len(slept) == 1 and 5 <= slept[0] <= 6   # waited the REAL 5s, not 60
+    fb2 = llm.FallbackClient([Flaky(9, 5)])
+    llm.reset_waits(1)
+    with pytest.raises(httpx.HTTPStatusError):                                           # one wait spent, still limited
+        fb2.chat([], [])
+    assert len(slept) == 2
+    fb3 = llm.FallbackClient([Flaky(9, 30)])                                             # 30s > cap: no sleeping at all
+    llm.reset_waits(1)
+    with pytest.raises(httpx.HTTPStatusError):
+        fb3.chat([], [])
+    assert len(slept) == 2
+
+
+def test_last_round_asks_for_an_answer_with_no_tools():
+    from halfspace.agent.orchestrator import MAX_TOOL_ROUNDS
+
+    class Spy(StubLLMClient):
+        def chat(self, messages, tools):
+            self.last_tools, self.last_msg = tools, messages[-1]
+            return super().chat(messages, tools)
+
+    script = [LLMResponse(tool_calls=[ToolCall("get_tactical_concepts", {})])] * (MAX_TOOL_ROUNDS - 1) + [LLMResponse(content="Partial answer.")]
+    llm_ = Spy(script)
+    a = Agent(llm_).run("broad question")
+    assert a.text == "Partial answer." and llm_.last_tools == [] and "budget" in llm_.last_msg["content"]
+
+
+def test_stray_tool_arguments_are_dropped_not_fatal():
+    script = [LLMResponse(tool_calls=[ToolCall("get_tactical_concepts", {"": ""})]), LLMResponse(content="Here are the concepts.")]
+    a = Agent(StubLLMClient(script)).run("what tactics can you explain?")
+    assert a.text == "Here are the concepts." and a.unresolved_caveats == []
+    assert "error" not in a.provenance[0].result and a.provenance[0].arguments == {}
+
+
+def test_concept_tool_hides_code_paths_and_prompt_forbids_them():
+    from halfspace.agent.orchestrator import SYSTEM_PROMPT
+    from halfspace.agent.tools import get_tactical_concept
+    out = get_tactical_concept(slug="high-press")
+    assert "detection_method" not in out and "halfspace." not in str(out) and out["name"] == "High press"
+    assert "Never mention code" in SYSTEM_PROMPT and "<br>" in SYSTEM_PROMPT

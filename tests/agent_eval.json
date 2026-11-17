@@ -1,0 +1,12 @@
+[
+ {"id": "goals_p90", "q": "Who topped goals per 90 in La Liga 2015/16 (competition 11, season 27)?", "tools_any": ["get_season_players", "get_leaders"], "answer_has_any": ["Suárez", "Suarez"]},
+ {"id": "npxg_forward", "q": "In La Liga 2015/16 (competition 11, season 27), which forward had the best non-penalty xG per 90, adjusted for sample size?", "tools_any": ["get_leaders"], "answer_has_any": ["Benzema"]},
+ {"id": "gk_prevented", "q": "In La Liga 2015/16 (competition 11, season 27), which goalkeeper prevented the most goals?", "tools_any": ["get_goalkeepers"], "answer_has_any": ["Jaume"]},
+ {"id": "corner_xg", "q": "Which team got the most xG per corner in La Liga 2015/16 (competition 11, season 27)?", "tools_any": ["get_team_patterns"], "answer_has_any": ["Eibar"]},
+ {"id": "style_neighbour", "q": "Which team-season in the data played most like Barcelona in La Liga 2015/16? Barcelona is team 217, competition 11, season 27.", "tools_any": ["get_similar_team_styles"], "answer_has_any": ["Paris Saint-Germain", "Barcelona"]},
+ {"id": "momentum_final", "q": "In the 2022 World Cup final (match 3869685), who was on top in the first half according to momentum?", "tools_any": ["get_match_momentum"], "answer_has_any": ["Argentina"]},
+ {"id": "caveat_mismatch", "q": "Compare Lionel Messi (player 5503) and goalkeeper Keylor Navas (player 5597) in La Liga 2015/16 (competition 11, season 27).", "tools_any": ["compare_players"], "answer_has_any": ["role", "position", "goalkeeper", "not comparable", "mismatch"]},
+ {"id": "unanswerable", "q": "What was Real Madrid's pass completion in the 1998 Champions League final?", "tools_any": [], "answer_has_any": ["not", "no data", "don't have", "cannot", "can't", "unavailable"]},
+ {"id": "tactics", "q": "List the tactical concepts you can explain and say which ones the data supports least.", "tools_any": ["get_tactical_concepts"], "answer_has_any": ["unsupported", "educational", "low"]},
+ {"id": "plays_like", "q": "Which players played most like Messi in La Liga 2015/16 (player 5503, competition 11, season 27)?", "tools_any": ["get_plays_like", "get_similar_players"], "answer_has_any": ["Bale", "Neymar", "Dembélé", "Mbapp"]}
+]

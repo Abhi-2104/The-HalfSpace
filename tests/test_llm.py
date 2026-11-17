@@ -51,3 +51,40 @@ def test_tool_lists_are_capped_with_truncation_note():
     out = _wrap(lambda: {"rows": list(range(LIST_CAP + 5)), "n": 1})()
     assert len(out["rows"]) == LIST_CAP and "of 30" in out["truncated"]["rows"]
     assert "truncated" not in _wrap(lambda: {"rows": [1, 2]})()
+
+
+def _status(code, retry_after=None):
+    req = httpx.Request("POST", "http://x")
+    hdrs = {"retry-after": str(retry_after)} if retry_after else {}
+    return httpx.HTTPStatusError(str(code), request=req, response=httpx.Response(code, headers=hdrs, request=req))
+
+
+class _Fake:
+    def __init__(self, result):
+        self.result, self.n = result, 0
+
+    def chat(self, messages, tools):
+        self.n += 1
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def test_fallback_skips_rate_limited_model_and_remembers_cooldown():
+    from halfspace.agent.llm import FallbackClient, LLMResponse
+    limited, ok = _Fake(_status(429, retry_after=30)), _Fake(LLMResponse(content="hi"))
+    fb = FallbackClient([limited, ok])
+    assert fb.chat([], []).content == "hi" and fb.chat([], []).content == "hi"
+    assert limited.n == 1 and ok.n == 2  # second call skipped the cooling model
+
+
+def test_fallback_raises_when_all_limited_and_on_non_retryable():
+    import pytest
+    from halfspace.agent.llm import FallbackClient
+    with pytest.raises(httpx.HTTPStatusError) as e:
+        FallbackClient([_Fake(_status(429)), _Fake(_status(429))]).chat([], [])
+    assert e.value.response.status_code == 429
+    second = _Fake(None)
+    with pytest.raises(httpx.HTTPStatusError):  # 401 is not retryable: no fallthrough
+        FallbackClient([_Fake(_status(401)), second]).chat([], [])
+    assert second.n == 0

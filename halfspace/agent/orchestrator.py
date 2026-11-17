@@ -11,10 +11,12 @@ not a guarantee):
 """
 from dataclasses import dataclass, field
 
-from halfspace.agent.llm import LLMClient
+import json
+
+from halfspace.agent.llm import LLMClient, reset_waits
 from halfspace.agent.tools import TOOLS, TOOLS_BY_NAME
 
-MAX_TOOL_ROUNDS = 6  # a stuck loop must fail loudly, not spin forever
+MAX_TOOL_ROUNDS = 8  # a stuck loop must fail loudly, not spin forever; the last round asks for an answer, no tools
 
 SYSTEM_PROMPT = """You are the Halfspace analyst. Answer only from tool results - \
 never state a stat, comparison, or tactical claim you haven't retrieved through a tool call. \
@@ -23,7 +25,46 @@ If the available tools/data cannot answer the question reliably, say so explicit
 If a comparison is flagged role_mismatch or low_sample, say why that weakens the comparison instead of \
 just reporting the numbers. \
 Earlier conversation turns are context for resolving references like "him" or "that season"; \
-call tools again for any new figure instead of reusing numbers from earlier answers."""
+call tools again for any new figure instead of reusing numbers from earlier answers. \
+Never mention code, function names, module paths or tool names. Answer in plain football language. \
+Use plain markdown: tables only for numbers, never <br> or HTML inside tables; use bullet lists for text."""
+
+
+LATEST_BUDGET, OLDER_BUDGET = 3000, 600  # chars of tool result the LLM sees; ~1K and ~200 tokens
+KEEP_FULL = ("caveat", "error")  # never truncated: the answer must be able to restate them exactly
+
+
+def shrink(obj, budget: int):
+    """Compact a tool result for the LLM: round floats, drop empty fields, cut long strings, and halve
+    list lengths until it fits `budget` chars. The full result stays in provenance."""
+    def walk(o, cap, key=None):
+        if isinstance(o, float):
+            return round(o, 3)
+        if isinstance(o, dict):
+            return {k: walk(v, cap, k) for k, v in o.items() if v not in (None, "", [], {})}
+        if isinstance(o, list):
+            return [walk(v, cap) for v in o[:cap]]
+        if isinstance(o, str) and key not in KEEP_FULL:
+            return o[:160]
+        return o
+    full = walk(obj, 10**9)
+    out = full
+    for cap in (10**9, 12, 8, 5, 3, 2):
+        out = walk(obj, cap)
+        if len(json.dumps(out, default=str)) <= budget:
+            return {**out, "trimmed": "lists shortened to fit"} if out != full and isinstance(out, dict) else out
+    return {"summary": json.dumps(out, default=str)[:budget], "trimmed": "cut to fit"}
+
+
+def compact_for_llm(messages: list[dict]) -> list[dict]:
+    """Copy of the history for the LLM: tool results from earlier rounds shrink hard, the latest round less."""
+    last_call = max((i for i, m in enumerate(messages) if m["role"] == "assistant" and m.get("tool_calls")), default=-1)
+    out = []
+    for i, m in enumerate(messages):
+        if m["role"] == "tool" and isinstance(m["content"], dict):
+            m = {**m, "content": shrink(m["content"], LATEST_BUDGET if i > last_call else OLDER_BUDGET)}
+        out.append(m)
+    return out
 
 
 @dataclass
@@ -52,21 +93,33 @@ class Agent:
                     {"role": "user", "content": question}]
         provenance: list[ToolExecution] = []
         caveats: list[str] = []
+        reset_waits(1)  # at most one rate-limit wait for this whole question
 
-        for _ in range(MAX_TOOL_ROUNDS):
-            response = self.llm.chat(messages, self.tools)
+        for round_no in range(MAX_TOOL_ROUNDS):
+            last = round_no == MAX_TOOL_ROUNDS - 1
+            view = compact_for_llm(messages)
+            if last:  # budget spent: ask for the best answer from what was retrieved, say what is missing
+                view.append({"role": "user", "content": "Tool budget used up. Answer now from the tool results above only, "
+                                                        "and state clearly what you could not check."})
+            response = self.llm.chat(view, [] if last else self.tools)
 
             if not response.tool_calls:
                 text = response.content or ""
                 missing = [c for c in caveats if c not in text]
                 return AgentAnswer(text=text, provenance=provenance, unresolved_caveats=missing)
 
+            if last:
+                break  # still asking for tools with none allowed: fail loudly below
             messages.append({"role": "assistant", "tool_calls": [tc.__dict__ for tc in response.tool_calls]})
             for call in response.tool_calls:
                 spec = TOOLS_BY_NAME.get(call.name)
                 if spec is None:
                     result = {"error": f"no such tool '{call.name}'"}
                 else:
+                    # models sometimes send stray keys (even an empty-name one) to tools that take none: drop what the
+                    # tool doesn't declare, rather than failing the call with a TypeError the user would see
+                    declared = spec.parameters.get("properties", {})
+                    call.arguments = {k: v for k, v in call.arguments.items() if k in declared}
                     result = spec.handler(**call.arguments)
 
                 for field_name in ("caveat", "error"):
