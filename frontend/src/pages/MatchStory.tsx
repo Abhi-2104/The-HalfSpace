@@ -129,7 +129,8 @@ export function MatchStory() {
                 </span>
                 <span className="font-mono text-xs text-ink-2">{cur.shot.minute}'{cur.shot.second}"</span>
               </div>
-              <Pitch>
+              {/* the attacking half is twice as big, so every player and the shot labels stay legible */}
+              <Pitch half={!!frame || (cur.shot.x ?? 0) >= 60} className="mx-auto block h-auto max-h-[60vh] w-auto max-w-full rounded-2xl">
                 {frame ? (
                   <FreezeFrameLayer frame={frame} ballLocation={cur.shot.x != null ? [cur.shot.x, cur.shot.y] : undefined} />
                 ) : (
@@ -138,7 +139,7 @@ export function MatchStory() {
               </Pitch>
               <p className="mt-2 text-xs text-ink-2">
                 {frame
-                  ? "Blue = attacking team, orange = defenders, ringed = keeper, white = ball."
+                  ? "Blue = attacking team, orange = defenders, GK = keeper, white centre = shooter. The shaded wedge is how much of the goal the shooter could see."
                   : cur.shot.has_freeze_frame ? "Loading positions…" : "No 360 data for this moment — showing the shot location only."}
               </p>
             </div>

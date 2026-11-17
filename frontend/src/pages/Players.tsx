@@ -18,11 +18,12 @@ export function Players() {
   const { competitions, competitionId, seasonId, select } = useCompetitionSelection();
   const [players, setPlayers] = useState<PlayerProfile[] | null>(null);
   const [sort, setSort] = useState<SortKey>("goals_p90");
+  const [minMinutes, setMinMinutes] = useState<number | null>(null); // the API's own floor, not a number baked into the page
 
   useEffect(() => {
     if (competitionId == null || seasonId == null) return;
     setPlayers(null);
-    api.seasonPlayers(competitionId, seasonId).then((r) => setPlayers(r.players));
+    api.seasonPlayers(competitionId, seasonId).then((r) => { setPlayers(r.players); setMinMinutes(r.min_minutes); });
   }, [competitionId, seasonId]);
 
   const sorted = players ? [...players].sort((a, b) => b[sort] - a[sort]) : null;
@@ -36,7 +37,7 @@ export function Players() {
           <CompetitionPicker competitions={competitions} competitionId={competitionId} seasonId={seasonId} onSelect={select} />
         )}
       </div>
-      <p className="mt-1 text-xs text-ink-2">Minimum 900 minutes played — a reliability floor, not an arbitrary cutoff.</p>
+      {minMinutes != null && <p className="mt-1 text-xs text-ink-2">Minimum {minMinutes.toLocaleString()} minutes played: a reliability floor, not an arbitrary cutoff.</p>}
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
         {SORTS.map(([key, label]) => (

@@ -45,8 +45,9 @@ export interface Cam {
 const KEYS: Array<[number, Cam]> = [
   [0.0, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
   [0.14, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
-  [0.4, { tilt: 41, yaw: -30, rise: 1, zoom: 1, fx: 66, fy: 40, tokens: 0 }],
-  [0.58, { tilt: 41, yaw: -30, rise: 1, zoom: 1.1, fx: 74, fy: 40, tokens: 0 }],
+  // zoom 0.86 about the middle of the turf keeps the whole slab, run-off and tall columns inside the frame
+  [0.4, { tilt: 41, yaw: -30, rise: 1, zoom: 0.86, fx: 70, fy: 40, tokens: 0 }],
+  [0.58, { tilt: 41, yaw: -30, rise: 1, zoom: 0.95, fx: 76, fy: 40, tokens: 0 }],
   [0.8, { tilt: 52, yaw: -8, rise: 0.3, zoom: 1.7, fx: 101, fy: 40, tokens: 0.2 }],
   [1.0, { tilt: 54, yaw: 0, rise: 0, zoom: 1.9, fx: 102, fy: 40, tokens: 1 }],
 ];
@@ -157,7 +158,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
     [shots, homeTeamId],
   );
   // one pinned label, on the best chance of the match, so labels never crowd each other
-  const goals = useMemo(() => items.filter((it) => it.goal).sort((a, b) => (b.shot.xg ?? 0) - (a.shot.xg ?? 0)).slice(0, 1), [items]);
+  const best = useMemo(() => [...items].filter((it) => it.shot.xg != null).sort((a, b) => (b.shot.xg ?? 0) - (a.shot.xg ?? 0)).slice(0, 1), [items]);
   const actor = freeze?.freeze_frame.find((p) => p.actor)?.location;
   const geo = useMemo(() => {
     if (!actor) return null;
@@ -300,9 +301,9 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
         }
       }
 
-      // pinned labels for the goals, and the hover tip
+      // pinned label on the highest-xG shot, and the hover tip
       const labOpacity = clamp01((cam.rise - 0.85) / 0.15) * clamp01(1 - cam.tokens * 2.2);
-      goals.forEach((g, j) => {
+      best.forEach((g, j) => {
         const lab = E.get(`lab${j}`) as HTMLElement | undefined;
         const t = tp[g.i];
         if (!lab || !t) return;
@@ -318,7 +319,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
       }
       set("cols", "style", `pointer-events:${cam.rise > 0.25 && cam.tokens < 0.6 ? "auto" : "none"}`);
     },
-    [items, goals, freeze, geo],
+    [items, best, freeze, geo],
   );
 
   useMotionValueEvent(progress, "change", draw);
@@ -428,14 +429,14 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
       </svg>
 
       <div className="pointer-events-none absolute inset-0">
-        {goals.map((g, j) => (
+        {best.map((g, j) => (
           <span
             key={g.i}
             ref={reg(`lab${j}`)}
             className="absolute -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full bg-ink-0 px-2.5 py-1 text-[11px] font-semibold text-pitch-950 shadow-md"
             style={{ opacity: 0 }}
           >
-            Best chance: goal, {g.shot.minute}′ · {(g.shot.xg ?? 0).toFixed(2)} xG
+            Best chance: {g.shot.outcome_name ?? "shot"}, {g.shot.minute}′ · {(g.shot.xg ?? 0).toFixed(2)} xG
           </span>
         ))}
         {geo && (

@@ -141,6 +141,15 @@ html.theme-anim *::after {
   background: var(--color-pitch-800);
 }
 
+/* shots you can click show a ring on hover, so "click to see everyone" is discoverable */
+.shot-dot .shot-hover-ring {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.shot-dot:hover .shot-hover-ring {
+  opacity: 0.95;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

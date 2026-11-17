@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { api, type ShotXg, type FreezeFrame } from "../../lib/api";
 import { IsoPitch } from "../iso/IsoPitch";
@@ -24,7 +24,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   const [frame, setFrame] = useState<FreezeFrame | null>(null);
   const [loadingFrame, setLoadingFrame] = useState(false);
   const [view, setView] = useState<"map" | "3d">("map");
-  const isoProgress = useMotionValue(0.58); // isometric camera, leaning toward the attacking third
+  const isoProgress = useMotionValue(0.42); // the settled isometric camera, framed to fit the whole pitch
 
   useEffect(() => {
     api.shotsXg(matchId).then((r) => setShots(r.shots)).catch(() => setShots([]));
@@ -38,9 +38,16 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   }
 
   const anyFreeze = shots?.some((s) => s.has_freeze_frame);
+  // quick picks: every goal that has a freeze-frame, or else the biggest chances that do (any match, any data)
+  const quickPicks = useMemo(() => {
+    const framed = (shots ?? []).filter((s) => s.has_freeze_frame);
+    const goals = framed.filter((s) => s.outcome_name === "Goal").sort((a, b) => a.minute - b.minute);
+    const list = goals.length ? goals : [...framed].sort((a, b) => (b.xg ?? 0) - (a.xg ?? 0)).slice(0, 5);
+    return list.slice(0, 8).map((shot) => ({ shot, goal: shot.outcome_name === "Goal" }));
+  }, [shots]);
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-start">
       <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="font-display text-lg font-bold text-ink-0">Shot map</h3>
@@ -61,25 +68,48 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
             </div>
           </div>
         </div>
-        {shots ? (
-          view === "map" ? (
-            <Pitch>
-              <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
-            </Pitch>
+        {/* one stage for both views, so switching never changes the card's height */}
+        <div className={`flex aspect-[128/88] items-center justify-center rounded-2xl ${view === "3d" ? "bg-pitch-950/40" : ""}`}>
+          {shots ? (
+            view === "map" ? (
+              <Pitch>
+                <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
+              </Pitch>
+            ) : (
+              <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} className="w-full" />
+            )
           ) : (
-            <div className="overflow-hidden rounded-xl">
-              <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} />
-            </div>
-          )
-        ) : (
-          <div className="aspect-[3/2]" />
-        )}
-        <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-1">
+            <div className="h-full w-full animate-pulse rounded-2xl bg-pitch-800/40" aria-label="Loading shots" />
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-1">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-a" /> {homeTeam}</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-b" /> {awayTeam}</span>
           <span className="text-ink-2">{view === "map" ? "ring = goal" : "ringed top = goal"}</span>
           {anyFreeze && <span className="text-marker-bright">{view === "map" ? "click a hollow-ringed shot" : "click a column"} to see everyone</span>}
         </div>
+        {quickPicks.length > 0 && (
+          <div className="mt-4 border-t border-pitch-800 pt-3">
+            <p className="mb-2 text-xs text-ink-2">{quickPicks[0].goal ? "Jump to a goal" : "Jump to the biggest chances"}</p>
+            <div className="flex flex-wrap gap-2">
+              {quickPicks.map(({ shot: s }) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => pick(s)}
+                  aria-pressed={selected?.id === s.id}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    selected?.id === s.id ? "border-marker bg-marker/10 text-ink-0" : "border-pitch-800 text-ink-1 hover:border-pitch-700 hover:text-ink-0"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${s.team_id === homeTeamId ? "bg-team-a" : "bg-team-b"}`} />
+                  {s.minute}′ {s.team_name}
+                  {s.xg != null && <span className="text-ink-2">{s.xg.toFixed(2)} xG</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
@@ -89,15 +119,15 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
             <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="pt-16 text-center text-sm text-ink-2">
               {anyFreeze
-                ? "Pick a shot on the left to see exactly where every player stood the moment it was taken."
-                : "This match has no 360 freeze-frame data — pick a match from a tournament that does (World Cup 2022, Euro 2024, Copa América 2024, Women's Euro 2025)."}
+                ? "Pick a shot, or use a quick pick, to see exactly where every player stood the moment it was taken."
+                : "This match has no 360 freeze-frame data, so the shot map is all there is to show. Matches that have it carry a lit 360 tick in their coverage mark."}
             </motion.p>
           )}
           {selected && (
             <motion.div key={selected.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              {loadingFrame && <div className="aspect-[3/2]" />}
+              {loadingFrame && <div className="mx-auto aspect-[68/88] max-h-[560px] animate-pulse rounded-2xl bg-pitch-800/40" aria-label="Loading player positions" />}
               {frame && (
-                <Pitch half>
+                <Pitch half className="mx-auto block h-auto max-h-[560px] w-auto max-w-full rounded-2xl">
                   <FreezeFrameLayer frame={frame} ballLocation={selected.x != null ? [selected.x, selected.y] : undefined} />
                 </Pitch>
               )}
@@ -106,7 +136,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
                 <span className="text-ink-0">{selected.player_name}</span> ({selected.team_name}),{" "}
                 {selected.minute}'{selected.second}" — {selected.outcome_name}
                 {selected.xg != null && <>, <span className="text-marker-bright">xG {selected.xg.toFixed(2)}</span></>}.
-                {" "}White dot = ball. Blue = shooter's team, orange = defenders, ringed = keeper.
+                {" "}White centre = shooter. Blue = shooter's team, orange = defenders, GK = keeper. The shaded wedge is how much of the goal the shooter could see.
               </p>
             </motion.div>
           )}
