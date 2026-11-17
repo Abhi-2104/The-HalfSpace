@@ -38,7 +38,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="HalfSpace API", lifespan=lifespan)
+app = FastAPI(
+    title="The Halfspace API",
+    description="Real open football data: matches, players, teams, tactics and an analyst agent. By Abhijith Varma.",
+    lifespan=lifespan,
+)
 
 # dev-only: frontend runs on Vite's default port, backend on uvicorn's.
 # Both are localhost, no real cross-origin trust boundary to defend at this stage.

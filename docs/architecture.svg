@@ -10,7 +10,7 @@
 
   <rect x="0" y="0" width="1320" height="480" fill="#ffffff"/>
 
-  <text x="44" y="40" font-size="20" font-weight="700" fill="#1f2328">HalfSpace architecture</text>
+  <text x="44" y="40" font-size="20" font-weight="700" fill="#1f2328">The Halfspace architecture</text>
   <text x="44" y="63" font-size="12.5" fill="#6e7781">Open data → raw cache → canonical DB → derived features → one shared query layer, read by both the API (and React UI) and the agent.</text>
 
   <!-- row 1: data pipeline -->

@@ -1,8 +1,13 @@
-# HalfSpace
+# The Halfspace
 
-**Football analysis you can trace back to the source.** HalfSpace turns real open football data into match stories, player and team profiles, tactical explainers and an AI analyst, and every number links back to the data that produced it.
+*by **Abhijith Varma***
 
-![HalfSpace home page: 558 matches, 1.9M events, with a real shot map from the 2022 World Cup final](docs/screenshots/explore.png)
+**Football analysis you can trace back to the source.** The Halfspace turns real open football data into match stories, player and team profiles, tactical explainers and an AI analyst, and every number links back to the data that produced it.
+
+<p align="center">
+  <img src="docs/screenshots/home-light.png" width="49%" alt="The Halfspace home page in the light theme: an isometric pitch where every shot of the 2022 World Cup final stands up as a column">
+  <img src="docs/screenshots/home-dark.png" width="49%" alt="The same home page in the dark theme">
+</p>
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
@@ -11,18 +16,31 @@
 
 ## What you can do with it
 
-- **See what made a chance.** Click any shot in a match and see where all 22 players were standing the instant it was taken, from real StatsBomb 360 freeze-frames. No paid tracking feed needed.
-- **Get walked through a match.** A scroll-driven story of every goal and big chance, in plain language: who scored, how good the chance was (xG), and what the score became.
+- **See what made a chance.** Click any shot in a match and see where every visible player was standing the instant it was taken, from real StatsBomb 360 freeze-frames. No paid tracking feed needed. A 3D view stands every shot up as a column, taller for a better chance.
+- **Get walked through a match.** The home page is a scroll story: the pitch tilts from a flat map to an isometric view, the columns rise, and the camera zooms in on a real shot. Match pages have a plain-language walkthrough of every goal and big chance.
 - **Explore players and teams.** Per-90 profiles, role-aware "players like this one", head-to-head comparisons, and pressing intensity (PPDA). The comparison flags itself when it isn't apples to apples, for example a striker against a goalkeeper.
 - **Learn the tactics.** 19 tactical concepts, each tagged with how much the data can actually support it, from "educational" to "unsupported".
 - **Ask the analyst.** An AI agent answers questions by calling the same query layer the API uses, and shows exactly which calls backed its answer.
 - **Switch depth.** A Beginner/Analyst toggle changes every metric explainer from plain English to method notes. Jargon is always one tap from a real explanation.
 
-![What made this chance: the 360 freeze-frame for a World Cup final shot, showing every visible player's position](docs/screenshots/freeze-frame.png)
+<p align="center">
+  <img src="docs/screenshots/story-columns.png" width="49%" alt="Scroll story, step two: the shots of the 2022 final stand up as columns, blue for Argentina and orange for France">
+  <img src="docs/screenshots/story-zoom.png" width="49%" alt="Scroll story, final step: zoomed in on a goal, with every visible player from the 360 freeze-frame standing on the pitch, and the shot's distance and angle">
+</p>
 
-![Walk me through this match: a sticky pitch that follows a scroll-driven story of the goals](docs/screenshots/story.png)
+![Match page in the dark theme: the 3D shot map on the left and, on the right, the freeze-frame for the clicked shot](docs/screenshots/match-3d.png)
 
-![Players page: La Liga 2015/16 ranked by goals per 90, with Suárez on top](docs/screenshots/players.png)
+<p align="center">
+  <img src="docs/screenshots/mobile-home.png" width="30%" alt="The home page on a phone">
+  <img src="docs/screenshots/mobile-story.png" width="30%" alt="The scroll story on a phone">
+</p>
+
+## The interface
+
+- **One pitch, one number.** The isometric pitch is hand-written SVG, not WebGL. A single `progress` value (0 to 1) drives a camera (top-down, isometric, zoomed on the penalty area), and each frame is written straight to the DOM, so scrolling never re-renders React.
+- **Smooth scroll.** [Lenis](https://github.com/darkroomengineering/lenis) runs from Motion's own frame loop, so scroll-linked animation stays in step with it. With a reduced-motion setting you get native scrolling and the intro animation is skipped.
+- **Light and dark.** One set of design tokens with two sets of values, a toggle in the nav, and no flash on load. Blue and orange mark the two teams in every chart, which stays readable for colour-blind users.
+- **Phones.** Every page fits a 390px screen, and the Beginner/Analyst switch moves into the mobile menu.
 
 ## The data
 
@@ -39,7 +57,7 @@ Each match carries a coverage record (events, 360, tracking), and the UI shows i
 
 ## How it works
 
-![HalfSpace architecture: open data is fetched once into a raw cache, ingested into a canonical SQLite schema, turned into features, and served by FastAPI to the React UI and by a shared query layer to the agent](docs/architecture.svg)
+![The Halfspace architecture: open data is fetched once into a raw cache, ingested into a canonical SQLite schema, turned into features, and served by FastAPI to the React UI and by a shared query layer to the agent](docs/architecture.svg)
 
 Every layer is disk-backed and can be inspected on its own. Nothing calls a data provider while a request is being served.
 
@@ -86,7 +104,7 @@ The full setup guide (all competitions, tracking data, the agent, the test suite
 
 ## Tech stack
 
-Python, FastAPI, SQLite, scikit-learn (xG-lite), React, Vite, TypeScript, Tailwind. Agent over an OpenAI-compatible API (Groq).
+Python, FastAPI, SQLite, scikit-learn (xG-lite), React, Vite, TypeScript, Tailwind, Framer Motion and Lenis. Agent over an OpenAI-compatible API (Groq). Type: Sora and DM Sans.
 
 ## Validation
 
@@ -98,9 +116,13 @@ The test suite (43 tests) runs against the real dataset and has caught real bugs
 - Free-tier LLM limits, no retry or fallback model yet.
 - Only 17 matches have tracking data. 360 freeze-frames cover three tournaments.
 - Local only: SQLite, no auth, no deployment, no CI.
+- The interface has been checked in Chromium at desktop and 390px widths. Safari, Firefox and tablet widths haven't been tested.
+- The 3D pitch is drawn per frame in SVG, which is smooth for one match's shots (about 30 to 40 columns). A match with far more shots, or a season-wide view, would need a canvas or WebGL renderer.
 
 Full list in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#limitations).
 
 ## Credits
 
 Event data and 360 freeze-frames: [StatsBomb Open Data](https://github.com/statsbomb/open-data), used under StatsBomb's public data licence, which requires attribution. Tracking data: [SkillCorner Open Data](https://github.com/SkillCorner/opendata) and the IDSSE/DFL dataset. Check each provider's licence before reusing their data.
+
+Designed and built by Abhijith Varma. Fonts: [Sora](https://fonts.google.com/specimen/Sora) and [DM Sans](https://fonts.google.com/specimen/DM+Sans), both under the SIL Open Font Licence.

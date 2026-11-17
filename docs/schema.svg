@@ -10,7 +10,7 @@
 
   <rect x="0" y="0" width="1160" height="800" fill="#ffffff"/>
 
-  <text x="44" y="38" font-size="20" font-weight="700" fill="#1f2328">HalfSpace canonical schema</text>
+  <text x="44" y="38" font-size="20" font-weight="700" fill="#1f2328">The Halfspace canonical schema</text>
   <text x="44" y="60" font-size="12.5" fill="#6e7781">Core entities and how they relate — see Notes below for two real data-quality gotchas.</text>
 
   <!-- legend -->

@@ -16,7 +16,7 @@ from halfspace.agent.tools import TOOLS, TOOLS_BY_NAME
 
 MAX_TOOL_ROUNDS = 6  # a stuck loop must fail loudly, not spin forever
 
-SYSTEM_PROMPT = """You are the HalfSpace analyst. Answer only from tool results - \
+SYSTEM_PROMPT = """You are the Halfspace analyst. Answer only from tool results - \
 never state a stat, comparison, or tactical claim you haven't retrieved through a tool call. \
 If a tool result includes a "caveat" or "error", you must mention it in your answer, not silently drop it. \
 If the available tools/data cannot answer the question reliably, say so explicitly rather than guessing. \
