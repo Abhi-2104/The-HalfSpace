@@ -30,7 +30,7 @@ export function Players() {
   const top = sorted?.[0]?.[sort] || 1; // bars are relative to the leader
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Players</h1>
         {competitions && (
@@ -63,7 +63,7 @@ export function Players() {
                 <span className="text-ink-0">{p.name}</span>
                 <span className="ml-2 text-xs text-ink-2">{p.team} · {p.position}</span>
               </div>
-              <div className="hidden h-1.5 w-36 overflow-hidden rounded-full bg-pitch-800 sm:block" aria-hidden>
+              <div className="hidden h-1.5 w-36 overflow-hidden rounded-full bg-pitch-800 sm:block lg:w-72" aria-hidden>
                 <div className="h-full rounded-full bg-marker" style={{ width: `${(p[sort] / top) * 100}%` }} />
               </div>
               <span className="w-12 text-right text-sm font-semibold tabular-nums text-marker-bright">{p[sort].toFixed(2)}</span>

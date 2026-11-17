@@ -70,16 +70,25 @@ function useHome() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [featured, setFeatured] = useState<Featured | null>(null);
   const [conceptCount, setConceptCount] = useState<number | null>(null);
+  const [settled, setSettled] = useState(false); // true once the featured-match lookup has finished, with or without a result
   useEffect(() => {
     api.overview().then(setOverview).catch(() => {});
     api.tacticalConcepts().then((r) => setConceptCount(r.concepts.length)).catch(() => {});
-    loadFeatured().then(setFeatured).catch(() => {});
+    loadFeatured().then(setFeatured).catch(() => {}).finally(() => setSettled(true));
   }, []);
-  return { overview, featured, conceptCount };
+  return { overview, featured, conceptCount, settled };
 }
 
-function PitchSkeleton() {
-  return <div className="aspect-[1000/640] w-full animate-pulse rounded-3xl bg-pitch-800/40" aria-label="Loading the match" />;
+/** A pulsing placeholder while loading. If loading finished with nothing to show, say why. */
+function PitchPlaceholder({ settled }: { settled: boolean }) {
+  if (!settled) return <div className="aspect-[1000/640] w-full animate-pulse rounded-3xl bg-pitch-800/40" aria-label="Loading the match" />;
+  return (
+    <div className="grid aspect-[1000/640] w-full place-items-center rounded-3xl border border-dashed border-pitch-700 p-8 text-center">
+      <p className="max-w-xs text-sm leading-relaxed text-ink-1">
+        Match data isn't available right now. Please check back in a moment.
+      </p>
+    </div>
+  );
 }
 
 function Legend({ home, away }: { home: string; away: string }) {
@@ -93,7 +102,7 @@ function Legend({ home, away }: { home: string; away: string }) {
 }
 
 /* ---------- Hero ---------- */
-function Hero({ overview, featured }: { overview: Overview | null; featured: Featured | null }) {
+function Hero({ overview, featured, settled }: { overview: Overview | null; featured: Featured | null; settled: boolean }) {
   const p = useMotionValue(0);
   useEffect(() => {
     if (!featured) return;
@@ -104,7 +113,7 @@ function Hero({ overview, featured }: { overview: Overview | null; featured: Fea
   const m = featured?.match;
 
   return (
-    <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 pb-10 pt-12 lg:min-h-[calc(100vh-72px)] lg:grid-cols-[0.95fr_1.25fr] lg:pt-6">
+    <section className="relative mx-auto grid max-w-[1440px] items-center gap-10 px-6 lg:px-10 pb-10 pt-12 lg:min-h-[calc(100vh-72px)] lg:grid-cols-[0.95fr_1.25fr] lg:pt-6">
       <div>
         <motion.h1
           className="font-display text-[44px] font-extrabold leading-[1.02] tracking-[-0.04em] text-ink-0 sm:text-6xl lg:text-[68px]"
@@ -166,7 +175,7 @@ function Hero({ overview, featured }: { overview: Overview | null; featured: Fea
             </p>
           </>
         ) : (
-          <PitchSkeleton />
+          <PitchPlaceholder settled={settled} />
         )}
       </div>
     </section>
@@ -186,7 +195,7 @@ function Caption({ progress, from, to, title, body, last = false }: { progress: 
   );
 }
 
-function Story({ featured }: { featured: Featured | null }) {
+function Story({ featured, settled }: { featured: Featured | null; settled: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const bar = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
@@ -202,7 +211,7 @@ function Story({ featured }: { featured: Featured | null }) {
   return (
     <section ref={ref} className="relative h-[480vh]" aria-label="How to read a match">
       <div className="sticky top-0 flex h-screen items-center overflow-hidden">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-6 px-6 lg:grid-cols-[0.8fr_1.5fr]">
+        <div className="mx-auto grid w-full max-w-[1440px] items-center gap-6 px-6 lg:px-10 lg:grid-cols-[0.8fr_1.5fr]">
           <div className="relative order-2 h-52 lg:order-1 lg:h-80">
             <Caption progress={scrollYProgress} from={0} to={0.16} title="Every shot of a match, on one map"
               body={m && facts ? `${m.home_team} v ${m.away_team} had ${facts.total} shots. Each dot is a real one, placed where it was taken.` : "Each dot is a real shot, placed where it was taken."} />
@@ -215,7 +224,7 @@ function Story({ featured }: { featured: Featured | null }) {
               body={focus ? `${describe(focus)}, rated ${xgText(focus)} xG. These are the players the cameras could see at that instant.` : "Every shot with 360 data shows where each visible player stood."} />
           </div>
           <div className="relative order-1 overflow-hidden border border-pitch-800 bg-pitch-900/50 max-md:-mx-6 max-md:border-x-0 md:rounded-[2rem] lg:order-2">
-            {featured && m ? <IsoPitch shots={featured.shots} homeTeamId={m.home_team_id} progress={scrollYProgress} freeze={featured.freeze} /> : <PitchSkeleton />}
+            {featured && m ? <IsoPitch shots={featured.shots} homeTeamId={m.home_team_id} progress={scrollYProgress} freeze={featured.freeze} /> : <PitchPlaceholder settled={settled} />}
           </div>
         </div>
         <div className="absolute bottom-8 left-1/2 hidden w-56 -translate-x-1/2 sm:block" aria-hidden>
@@ -238,10 +247,10 @@ function Features({ matchId, conceptCount }: { matchId: number | null; conceptCo
     { to: "/tactics", title: "Learn the tactics", body: `${conceptCount ?? "Many"} tactical concepts, each marked with how much the data can really show.`, icon: "M12 3 3 8l9 5 9-5-9-5ZM3 13l9 5 9-5" },
   ];
   return (
-    <section className="mx-auto max-w-6xl px-6 py-24">
+    <section className="mx-auto max-w-[1440px] px-6 lg:px-10 py-24">
       <Reveal>
         <h2 className="max-w-xl font-display text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] text-ink-0">Start anywhere. Go as deep as you like.</h2>
-        <p className="mt-4 max-w-lg text-ink-1">The Beginner and Analyst switch in the top bar changes how much detail every page shows, without changing the data.</p>
+        <p className="mt-4 max-w-lg text-ink-1">Choose "I'm a beginner" or "I'm a nerd" in the top bar to change how much detail every page shows, without changing the data.</p>
       </Reveal>
       <div className="mt-12 grid gap-5 sm:grid-cols-2">
         {features.map((f, i) => (
@@ -267,7 +276,7 @@ function Honest({ overview, featured }: { overview: Overview | null; featured: F
   const m = featured?.match;
   const flags: Array<[string, number]> = c ? [["event data", c.has_events], ["360 freeze-frames", c.has_360], ["tracking", c.has_tracking]] : [];
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-24">
+    <section className="mx-auto max-w-[1440px] px-6 lg:px-10 pb-24">
       <Reveal>
         <div className="grid gap-10 rounded-[2rem] border border-pitch-800 bg-pitch-900 p-8 sm:p-12 lg:grid-cols-[1fr_1fr] lg:items-center">
           <div>
@@ -308,7 +317,7 @@ function Closing({ featured }: { featured: Featured | null }) {
   const goals = featured?.shots.filter((s) => s.outcome_name === "Goal").length ?? 0;
   const best = featured ? [...featured.shots].filter((s) => s.xg != null).sort((a, b) => (b.xg ?? 0) - (a.xg ?? 0))[0] : null;
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-8">
+    <section className="mx-auto max-w-[1440px] px-6 lg:px-10 pb-8">
       <Reveal>
         <div className="relative overflow-hidden rounded-[2rem] bg-marker px-8 py-16 text-center text-on-accent sm:px-16">
           <div className="pointer-events-none absolute inset-0 opacity-25" aria-hidden style={{ backgroundImage: "radial-gradient(circle at 20% 0%, #fff, transparent 45%), radial-gradient(circle at 90% 100%, var(--color-warm), transparent 50%)" }} />
@@ -329,11 +338,11 @@ function Closing({ featured }: { featured: Featured | null }) {
 }
 
 export function Explore() {
-  const { overview, featured, conceptCount } = useHome();
+  const { overview, featured, conceptCount, settled } = useHome();
   return (
     <>
-      <Hero overview={overview} featured={featured} />
-      <Story featured={featured} />
+      <Hero overview={overview} featured={featured} settled={settled} />
+      <Story featured={featured} settled={settled} />
       <Features matchId={featured?.match.id ?? null} conceptCount={conceptCount} />
       <Honest overview={overview} featured={featured} />
       <Closing featured={featured} />

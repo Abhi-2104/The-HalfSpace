@@ -13,7 +13,7 @@ export function Tactics() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Tactics</h1>
       <p className="mt-2 text-ink-1">
         Not a glossary. Every concept is tagged with what we actually do about it — explain it, measure a proxy

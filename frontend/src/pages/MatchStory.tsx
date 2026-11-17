@@ -1,3 +1,4 @@
+import { LoadError } from "../components/LoadError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, type MatchDetailInfo, type ShotXg, type FreezeFrame } from "../lib/api";
@@ -101,13 +102,13 @@ export function MatchStory() {
     return () => obs.disconnect();
   }, [moments]);
 
-  if (error) return <div className="mx-auto max-w-4xl px-6 py-12 text-clay">{error}</div>;
-  if (!match || !shots) return <div className="mx-auto max-w-4xl px-6 py-12 text-ink-2">Loading…</div>;
+  if (error) return <LoadError error={error} what="match" backTo="/matches" backLabel="Back to matches" />;
+  if (!match || !shots) return <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 text-ink-2">Loading…</div>;
 
   const cur = moments[active];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <Link to={`/matches/${id}`} className="font-mono text-xs text-ink-2 hover:text-marker-bright">← back to match</Link>
       <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">
         {match.home_team} <span className="text-marker-bright">{match.home_score}–{match.away_score}</span> {match.away_team}

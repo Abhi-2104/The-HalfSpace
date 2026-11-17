@@ -13,19 +13,23 @@ const LINKS = [
   ["/compare", "Compare"],
 ] as const;
 
+// the stored values stay "beginner" / "analyst"; only the wording shown to people changes
+const MODE_LABELS = { beginner: "I'm a beginner", analyst: "I'm a nerd" } as const;
+
 function ModeSwitch() {
   const { mode, setMode } = useMode();
   return (
     <div
       className="relative flex rounded-full border border-pitch-800 bg-pitch-900/60 p-0.5 text-xs font-medium"
-      title="Beginner leads with plain-language explainers. Analyst shows the raw stats and methods."
+      title="Plain-language explainers first, or the raw stats and methods."
     >
       {(["beginner", "analyst"] as const).map((m) => (
         <button
           key={m}
           type="button"
           onClick={() => setMode(m)}
-          className={`relative z-10 rounded-full px-3 py-1.5 capitalize transition-colors ${
+          aria-pressed={mode === m}
+          className={`relative z-10 whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${
             mode === m ? "text-on-accent" : "text-ink-1 hover:text-ink-0"
           }`}
         >
@@ -36,7 +40,7 @@ function ModeSwitch() {
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
             />
           )}
-          {m}
+          {MODE_LABELS[m]}
         </button>
       ))}
     </div>
@@ -47,12 +51,12 @@ export function Nav() {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-30 border-b border-pitch-800/80 bg-pitch-950/75 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 lg:px-10 py-3">
         <NavLink to="/" aria-label="The Halfspace by Abhijith Varma, home" onClick={() => setOpen(false)}>
           <Brand />
         </NavLink>
 
-        <nav className="hidden items-center gap-1 text-sm font-medium md:flex" aria-label="Main">
+        <nav className="hidden items-center gap-1 text-sm font-medium lg:flex" aria-label="Main">
           {LINKS.map(([to, label]) => (
             <NavLink
               key={to}
@@ -78,13 +82,13 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2.5">
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <ModeSwitch />
           </div>
           <ThemeToggle />
           <button
             type="button"
-            className="grid h-9 w-9 place-items-center rounded-full border border-pitch-800 text-ink-1 md:hidden"
+            className="grid h-9 w-9 place-items-center rounded-full border border-pitch-800 text-ink-1 lg:hidden"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
@@ -103,10 +107,10 @@ export function Nav() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden border-t border-pitch-800 md:hidden"
+            className="overflow-hidden border-t border-pitch-800 lg:hidden"
             aria-label="Main"
           >
-            <div className="mx-auto flex max-w-6xl flex-col px-6 py-3">
+            <div className="mx-auto flex max-w-[1440px] flex-col px-6 lg:px-10 py-3">
               {LINKS.map(([to, label]) => (
                 <NavLink
                   key={to}

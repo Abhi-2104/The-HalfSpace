@@ -4,6 +4,7 @@ import { ModeProvider } from "./lib/mode";
 import { ThemeProvider } from "./lib/theme";
 import { Nav } from "./components/Nav";
 import { Footer } from "./components/Footer";
+import { ApiBanner } from "./components/ApiBanner";
 import { SmoothScroll } from "./components/SmoothScroll";
 import { PageTransition } from "./components/PageTransition";
 import { Explore } from "./pages/Explore";
@@ -44,6 +45,7 @@ export default function App() {
         <BrowserRouter>
           <SmoothScroll>
             <Nav />
+            <ApiBanner />
             <main>
               <AnimatedRoutes />
             </main>

@@ -1,4 +1,5 @@
-const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const BASE = API_BASE;
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
   const url = new URL(BASE + path);

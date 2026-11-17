@@ -18,7 +18,7 @@ export function Matches() {
   }, [competitionId, seasonId]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Matches</h1>
         {competitions && (

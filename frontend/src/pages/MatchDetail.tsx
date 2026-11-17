@@ -1,3 +1,4 @@
+import { LoadError } from "../components/LoadError";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, type MatchDetailInfo, type MatchProfile, type Counterattack, type PassNetwork } from "../lib/api";
@@ -35,8 +36,8 @@ export function MatchDetail() {
     api.passNetwork(id, teamId).then(setNetwork).catch(() => setNetwork(null));
   }, [match, netTeam, id]);
 
-  if (error) return <div className="mx-auto max-w-4xl px-6 py-12 text-clay">{error}</div>;
-  if (!match) return <div className="mx-auto max-w-4xl px-6 py-12 text-ink-2">Loading…</div>;
+  if (error) return <LoadError error={error} what="match" backTo="/matches" backLabel="Back to matches" />;
+  if (!match) return <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 text-ink-2">Loading…</div>;
 
   const ppdaHome = profile?.ppda[String(match.home_team_id)];
   const ppdaAway = profile?.ppda[String(match.away_team_id)];
@@ -44,7 +45,7 @@ export function MatchDetail() {
   const shotsAway = profile?.shots[String(match.away_team_id)];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <p className="font-mono text-xs text-ink-2">
         {match.competition_name} {match.season_name} — {match.match_date}
       </p>

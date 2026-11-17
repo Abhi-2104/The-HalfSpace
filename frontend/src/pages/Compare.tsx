@@ -63,7 +63,7 @@ export function Compare() {
   }, [idA, idB, mode, competitionId, seasonId]);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 [&>*]:max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Compare</h1>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">

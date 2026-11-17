@@ -4,7 +4,7 @@ import { Brand } from "./Brand";
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-pitch-800">
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-6 lg:px-10 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
         <div>
           <Brand size="lg" />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-1">

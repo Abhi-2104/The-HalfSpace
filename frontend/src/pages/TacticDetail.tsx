@@ -12,10 +12,10 @@ export function TacticDetail() {
     api.tacticalConcept(slug!).then(setConcept);
   }, [slug]);
 
-  if (!concept) return <div className="mx-auto max-w-2xl px-6 py-12 text-ink-2">Loading…</div>;
+  if (!concept) return <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 [&>*]:max-w-3xl text-ink-2">Loading…</div>;
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 [&>*]:max-w-3xl">
       <Link to="/tactics" className="font-mono text-xs text-ink-2 hover:text-ink-0">← All concepts</Link>
       <div className="mt-3 flex items-center gap-3">
         <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{concept.name}</h1>

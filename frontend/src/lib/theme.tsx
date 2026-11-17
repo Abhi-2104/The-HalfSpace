@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 
 /**
  * Light/dark theme. The initial value is set by an inline script in index.html
- * before first paint (saved choice, then the system setting), so there is no
+ * before first paint (saved choice, otherwise light), so there is no
  * flash. Here we only read it, flip it, and remember the choice.
  */
 export type Theme = "light" | "dark";

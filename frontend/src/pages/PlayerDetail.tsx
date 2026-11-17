@@ -1,3 +1,4 @@
+import { LoadError } from "../components/LoadError";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, type SimilarPlayersResult, type Heatmap } from "../lib/api";
@@ -28,13 +29,13 @@ export function PlayerDetail() {
     api.seasonPlayerHeatmap(competitionId, seasonId, Number(playerId)).then(setHeatmap).catch(() => setHeatmap(null));
   }, [playerId, competitionId, seasonId]);
 
-  if (error) return <div className="mx-auto max-w-4xl px-6 py-12 text-clay">{error}</div>;
-  if (!result) return <div className="mx-auto max-w-4xl px-6 py-12 text-ink-2">Loading…</div>;
+  if (error) return <LoadError error={error} what="player" backTo="/players" backLabel="Back to players" />;
+  if (!result) return <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12 text-ink-2">Loading…</div>;
 
   const { target, most_similar, peer_group, peer_group_size, reliability_note } = result;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
+    <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{target.name}</h1>
       <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {target.minutes} min</p>
 
