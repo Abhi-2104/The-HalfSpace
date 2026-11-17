@@ -45,6 +45,7 @@ def test_match_sequences(client):
     assert all(c["confidence"] == "medium" for c in body["counterattacks"])
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_season_players_suarez_top_scorer(client):
     r = client.get(f"/competitions/{LALIGA_1516[0]}/seasons/{LALIGA_1516[1]}/players")
     assert r.status_code == 200
@@ -52,6 +53,7 @@ def test_season_players_suarez_top_scorer(client):
     assert "Suárez" in top["name"]
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_similar_players_messi_neymar(client):
     r = client.get(f"/competitions/{LALIGA_1516[0]}/seasons/{LALIGA_1516[1]}/players/{MESSI_ID}/similar")
     assert r.status_code == 200
@@ -85,6 +87,7 @@ def test_season_teams_spain_top_press(client):
     assert "Spain" in ranked[:5]
 
 
+@pytest.mark.usefixtures("needs_tracking")
 def test_tracking_endpoints(client):
     r = client.get("/tracking", params={"provider": "skillcorner_open_data"})
     assert r.status_code == 200

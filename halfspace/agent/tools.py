@@ -22,15 +22,25 @@ class ToolSpec:
     handler: Callable[..., dict]
 
 
+LIST_CAP = 25  # a 380-match/344-player list is ~30k tokens - over free-tier per-minute limits
+
+
 def _wrap(fn):
     """Tool execution never raises into the agent loop - a bad call becomes
     an {"error": ...} the LLM can read and react to (retry, ask the user to
-    clarify, or say it can't answer), not a crash."""
+    clarify, or say it can't answer), not a crash. Long lists are cut to
+    LIST_CAP with a "truncated" note so the LLM knows it saw a slice."""
     def wrapped(**kwargs) -> dict:
         try:
-            return fn(**kwargs)
+            result = fn(**kwargs)
         except Exception as exc:
             return {"error": f"{type(exc).__name__}: {exc}"}
+        if isinstance(result, dict):
+            cut = {k: f"showing first {LIST_CAP} of {len(v)}" for k, v in result.items()
+                   if isinstance(v, list) and len(v) > LIST_CAP}
+            if cut:
+                result = {**{k: v[:LIST_CAP] if k in cut else v for k, v in result.items()}, "truncated": cut}
+        return result
     return wrapped
 
 
@@ -65,11 +75,13 @@ def get_match_sequences(match_id: int) -> dict:
 
 
 @_wrap
-def get_season_players(competition_id: int, season_id: int) -> dict:
+def get_season_players(competition_id: int, season_id: int, sort_by: str = "goals_p90") -> dict:
     profiles = player_features.season_player_profiles(db.connect(), competition_id, season_id)
     if not profiles:
         return {"error": "no players with sufficient minutes for this competition/season"}
-    return {"players": sorted(profiles, key=lambda p: -p["goals_p90"]), "min_minutes": player_features.MIN_MINUTES}
+    if sort_by not in profiles[0] or not isinstance(profiles[0][sort_by], (int, float)):
+        return {"error": f"cannot sort by '{sort_by}'; use a numeric field like {', '.join(k for k, v in profiles[0].items() if isinstance(v, float))}"}
+    return {"sorted_by": sort_by, "players": sorted(profiles, key=lambda p: -p[sort_by]), "min_minutes": player_features.MIN_MINUTES}
 
 
 @_wrap
@@ -123,8 +135,11 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_profile),
     ToolSpec("get_match_sequences", "Heuristically-detected counterattacks in one match (medium confidence).",
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_sequences),
-    ToolSpec("get_season_players", "Per-90 player profiles for a competition/season (min 900 minutes).",
-             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}}, "required": ["competition_id", "season_id"]},
+    ToolSpec("get_season_players", "Per-90 player profiles (min 900 minutes), best first by sort_by "
+             "(goals_p90, shots_p90, key_passes_p90, prog_passes_p90, prog_carries_p90, dribbles_completed_p90, pressures_p90, touches_p90). "
+             "Returns only the top 25.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
+                                                "sort_by": {"type": "string"}}, "required": ["competition_id", "season_id"]},
              get_season_players),
     ToolSpec("get_similar_players", "Role-aware most-similar players to a given player.",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},

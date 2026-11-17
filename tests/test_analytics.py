@@ -28,6 +28,7 @@ def conn():
     return c
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_suarez_tops_goals_per_90_la_liga_1516(conn):
     """Luis Suárez won the real 2015/16 Pichichi (La Liga top scorer, 40 goals)."""
     profiles = player.season_player_profiles(conn, *LALIGA_1516)
@@ -36,6 +37,7 @@ def test_suarez_tops_goals_per_90_la_liga_1516(conn):
     assert "Suárez" in top["name"], f"expected Suárez top of goals/90, got {top['name']} ({top['goals_p90']})"
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_messi_similarity_surfaces_neymar(conn):
     """Both were Barcelona wide creative dribblers in 2015/16 - the expected real-world answer."""
     result = player.similar_players(conn, *LALIGA_1516, player_id=MESSI_ID, top_n=8)

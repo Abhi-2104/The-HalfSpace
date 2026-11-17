@@ -27,6 +27,7 @@ def ready_db():
         pytest.skip("data/halfspace.db has no ingested events")
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_single_tool_call_records_provenance(ready_db):
     script = [
         LLMResponse(tool_calls=[ToolCall("get_season_players", LALIGA_1516)]),
@@ -94,6 +95,7 @@ def test_error_from_bad_player_id_is_not_hidden(ready_db):
     assert answer.provenance[0].result["error"] in answer.unresolved_caveats
 
 
+@pytest.mark.usefixtures("needs_laliga")
 def test_multi_tool_chain_preserves_order(ready_db):
     script = [
         LLMResponse(tool_calls=[ToolCall("list_competitions", {})]),
