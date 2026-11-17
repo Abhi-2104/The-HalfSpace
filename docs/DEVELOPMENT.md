@@ -1,6 +1,6 @@
 # Development guide
 
-Setup, data loading, layout, test notes and known limitations. For the project overview, see the [README](../README.md).
+Setup, data loading, layout, test notes and known limitations. For the project overview, see the [README](../README.md). For planned models and AI work, see the [roadmap](ROADMAP.md).
 
 ## Setup
 
@@ -17,7 +17,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python3 -m pytest tests -q
 ```
 
-On a fresh clone this gives `10 passed, 33 skipped`. The 33 skipped tests check real data, so they skip until you ingest some (below). The 10 that run use small committed fixtures and a stubbed LLM.
+On a fresh clone most data tests skip. The skipped tests check real data, so they skip until you ingest some (below). The ones that run use small committed fixtures and a stubbed LLM.
 
 ### 2. Load some data
 
@@ -32,7 +32,7 @@ Raw files are cached in `data/raw/` and never committed. The SQLite database is 
 
 Run the tests again: about 28 pass and the rest skip. The skipped ones need La Liga and tracking data.
 
-**Full set (about 1.5 GB database, about 6 GB raw cache, tracking is the slow part):**
+**Full set (about 4.7 GB database before packing, about 11 GB raw cache; `refresh_data.py --all-360 --women` pulls all 24 competition-seasons, about 2 hours):**
 
 ```bash
 .venv/bin/python3 scripts/ingest_competition.py 11 27            # La Liga 2015/16
@@ -43,7 +43,18 @@ Run the tests again: about 28 pass and the rest skip. The skipped ones need La L
 .venv/bin/python3 scripts/ingest_idsse.py                        # 7 tracking matches, about 2.5 GB download
 ```
 
-Now the whole suite runs: `43 passed`.
+Now the whole suite runs: `68 passed` (after `scripts/build_models.py`).
+
+### Keeping data current
+
+```bash
+.venv/bin/python3 scripts/refresh_data.py --dry-run          # show the plan
+.venv/bin/python3 scripts/refresh_data.py                    # check ingested seasons for new matches
+.venv/bin/python3 scripts/refresh_data.py --all-360 --women  # also add every 360 and women's competition
+.venv/bin/python3 scripts/refresh_data.py --add 43:3         # add specific competition:season pairs
+```
+
+It re-downloads the StatsBomb competition and match lists, then ingests only matches not already done, with 360 where StatsBomb marks it available. Exits non-zero if any match failed, so it works from cron or CI. StatsBomb open data is a curated, historical release, so this picks up new releases, not live matches.
 
 ### 3. Run the app
 
@@ -83,6 +94,30 @@ curl -s localhost:8000/agent/ask -H 'content-type: application/json' \
 ```
 
 `.env` is gitignored. The agent needs the data loaded (step 2), since it reads the same database as the API. Free tiers have per-minute and per-day limits, so heavy use may return a 429.
+
+## Models and derived data
+
+Models train on the cached raw JSON, not on the hosted DB, and write small outputs that the API serves.
+
+```bash
+.venv/bin/python3 scripts/refresh_data.py --all-360 --women   # bring in matches
+.venv/bin/python3 scripts/build_models.py                      # derive tables + every model (a few minutes, 16 cores)
+.venv/bin/python3 scripts/build_models.py xg xt                # or selected steps; derive runs first after new ingests
+```
+
+| Path | What | Hosted? |
+|---|---|---|
+| `data/derived/*.pkl` | Rich event, shot and match tables parsed from raw (possession ids, pressure, shot freeze-frame features, pass detail) | No, local only |
+| `data/derived.db` | Model outputs: xG per shot, momentum, profiles, styles, ratings, roles | Yes |
+| `data/models/` | Model files and `*_card.json` model cards (metrics, calibration, limits) | Yes (note: gitignored) |
+
+Every model writes a card; `GET /models` lists them. Model endpoints live in `halfspace/api_models.py`, and the agent tools call the same functions (`halfspace/models/serve.py`).
+
+Agent evaluation against the real model (uses free-tier quota; stops cleanly on a rate limit):
+
+```bash
+.venv/bin/python3 scripts/eval_agent.py            # 10 golden questions in tests/agent_eval.json
+```
 
 ## Agent API
 
@@ -139,18 +174,18 @@ Bugs found by those tests and fixed at the shared layer: a 185-minute Messi bug 
 - "Progressive pass" would reward goalkeeper long punts, so goalkeepers are excluded.
 - SkillCorner files are Git LFS, so the fetcher uses the media URL, not the raw one.
 - IDSSE position files are 350-420 MB of XML each, so they are stream-parsed and downsampled to about 1 frame per second.
-- Season-profile caches live for the process lifetime. Restart the API after re-ingesting.
+- Season-profile caches are keyed on the season's match count, so newly ingested matches show up without restarting the API.
 - A shot's `x` coordinate is already in the shooting team's attacking direction, so no flipping is needed.
 
 ## Limitations
 
 - **The agent is not in the UI yet.** The API has `POST /agent/ask`, but the chat panel is not built.
-- **Free LLM limits.** The agent uses Groq's free tier, which caps requests per minute and per day. There is no retry or fallback model yet, so a rate limit surfaces as a 429. A second provider as a fallback is planned.
+- **Free LLM limits.** The agent uses Groq's free tier (8K tokens per minute, 200K per day, per model). A fallback chain (`GROQ_MODELS`, default gpt-oss-120b, qwen3.8-27b, gpt-oss-20b) moves to the next model on a 429, since limits are per model. If every model is limited the API returns 429.
 - **Weaker models, weaker answers.** Tool results are capped at 25 rows so they fit free-tier limits, and the agent can only answer from what the tools return. The caveat check matches caveat text exactly, so a model that paraphrases a caveat is flagged as having dropped it.
 - **Small tracking sample.** Only 17 matches have tracking data, and the SkillCorner ones are modeled from broadcast video, not measured. Tracking-based tactics are limited to team shape.
 - **Simple models.** xG-lite is a logistic regression on distance, angle and header, with no defender positions. Counterattack detection is a heuristic, labeled medium confidence, not a trained classifier. Player similarity is role-aware but position-bucket based.
 - **Uneven coverage.** 360 freeze-frames exist for three tournaments only. La Liga and Copa América have events but no 360. Mostly men's data, apart from the Women's Euro.
-- **Heavy local data.** A full setup is about 1.5 GB of database and 6 GB of raw cache, and nothing here is hosted.
+- **Heavy local data.** A full setup is about 4.7 GB of database (about 1.3 GB after `scripts/pack_frames.py`) and 11 GB of raw cache, and nothing here is hosted.
 - **SQLite, no auth, no deployment.** Single-user and local. Postgres with pgvector is the planned move if similarity search or multiple writers need it.
 - **No CI.** The suite needs the real dataset for full coverage, so it is run locally.
 

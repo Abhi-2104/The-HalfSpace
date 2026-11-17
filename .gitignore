@@ -11,3 +11,5 @@ data/models/
 # secrets
 .env
 !.env.example
+data/derived/
+data/eval/
