@@ -5,10 +5,17 @@ path for the agent - see project spec section 19/23).
 """
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from dataclasses import asdict
+from typing import Literal
+
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from halfspace import db, lookups, tactical
+from halfspace.agent.llm import LLMClient, groq_client
+from halfspace.agent.orchestrator import Agent
 from halfspace.features import player as player_features
 from halfspace.features import team as team_features
 from halfspace.features import sequences, spatial, pitch
@@ -37,8 +44,42 @@ app = FastAPI(title="HalfSpace API", lifespan=lifespan)
 # Both are localhost, no real cross-origin trust boundary to defend at this stage.
 app.add_middleware(
     CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET"], allow_headers=["*"],
+    allow_methods=["GET", "POST"], allow_headers=["*"],
 )
+
+
+def get_llm() -> LLMClient:
+    """Dependency so tests (and a future fallback wrapper) can swap the model."""
+    try:
+        return groq_client()
+    except KeyError:
+        raise HTTPException(503, "agent unavailable: GROQ_API_KEY not set")
+
+
+class Turn(BaseModel):
+    # only user/assistant: a client must not be able to inject system or tool messages
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    history: list[Turn] = Field(default_factory=list, max_length=20)
+
+
+# sync def: the agent loop is blocking httpx, so FastAPI runs it in its threadpool.
+# ponytail: stateless - the client holds the conversation and sends it back as `history`
+# (no sessions/DB on the server). No streaming; add SSE if latency hurts the chat UI.
+@app.post("/agent/ask")
+def agent_ask(req: AskRequest, llm: LLMClient = Depends(get_llm)):
+    try:
+        answer = Agent(llm).run(req.question, [t.model_dump() for t in req.history])
+    except httpx.HTTPStatusError as e:
+        code = 429 if e.response.status_code == 429 else 502
+        raise HTTPException(code, f"LLM provider error: HTTP {e.response.status_code}")
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"LLM provider unreachable: {type(e).__name__}")
+    return asdict(answer)
 
 
 @app.get("/health")

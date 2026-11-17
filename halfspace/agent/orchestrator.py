@@ -21,7 +21,9 @@ never state a stat, comparison, or tactical claim you haven't retrieved through 
 If a tool result includes a "caveat" or "error", you must mention it in your answer, not silently drop it. \
 If the available tools/data cannot answer the question reliably, say so explicitly rather than guessing. \
 If a comparison is flagged role_mismatch or low_sample, say why that weakens the comparison instead of \
-just reporting the numbers."""
+just reporting the numbers. \
+Earlier conversation turns are context for resolving references like "him" or "that season"; \
+call tools again for any new figure instead of reusing numbers from earlier answers."""
 
 
 @dataclass
@@ -43,8 +45,11 @@ class Agent:
         self.llm = llm
         self.tools = tools if tools is not None else TOOLS
 
-    def run(self, question: str) -> AgentAnswer:
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
+    def run(self, question: str, history: list[dict] | None = None) -> AgentAnswer:
+        """history: prior {role: user|assistant, content} text turns only (no tool
+        traffic). Caveat tracking is per-run: it covers tool results from THIS question."""
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *(history or []),
+                    {"role": "user", "content": question}]
         provenance: list[ToolExecution] = []
         caveats: list[str] = []
 
