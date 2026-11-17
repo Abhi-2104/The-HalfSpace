@@ -78,3 +78,27 @@ if __name__ == "__main__":
     test_progressive_passes_exclude_goalkeepers()
     test_ppda_computes_for_both_teams()
     print("all smoke tests passed")
+
+
+def test_season_match_count_changes_when_matches_are_ingested(tmp_path):
+    """Profile caches are keyed on this, so new matches must change it (no API restart)."""
+    from halfspace import db
+    conn = db.connect(tmp_path / "t.db")
+    assert db.season_match_count(conn, 1, 1) == 0
+    conn.execute("INSERT INTO competition (id, name) VALUES (1, 'c')")
+    conn.execute("INSERT INTO season (id, competition_id, name) VALUES (1, 1, 's')")
+    conn.execute("INSERT INTO match (id, competition_id, season_id) VALUES (10, 1, 1)")
+    assert db.season_match_count(conn, 1, 1) == 1
+    assert db.season_match_count(conn, 1, 2) == 0
+
+
+def test_framepack_roundtrip_within_a_tenth_of_a_yard():
+    from halfspace import framepack
+    players = [{"teammate": True, "actor": True, "keeper": False, "location": [101.04, 48.0]},
+               {"teammate": False, "actor": False, "keeper": True, "location": [118.96, 40.12]}]
+    out = framepack.unpack_players(framepack.pack_players(players))
+    assert [(p["teammate"], p["actor"], p["keeper"]) for p in out] == [(True, True, False), (False, False, True)]
+    assert all(abs(a["location"][i] - b["location"][i]) <= 0.05 + 1e-9 for a, b in zip(players, out) for i in (0, 1))
+    area = [10.5, 0.0, 99.9, 80.0]
+    assert all(abs(a - b) <= 0.05 + 1e-9 for a, b in zip(area, framepack.unpack_area(framepack.pack_area(area))))
+    assert len(framepack.pack_players(players)) == 10  # 5 bytes per player

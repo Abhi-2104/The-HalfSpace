@@ -5,19 +5,20 @@ from the scratchpad script that validated it against real WC2022 results
 """
 import sqlite3
 
+from halfspace import db
 from halfspace.features import ppda
 
 # Same rationale as halfspace.features.player._profile_cache: this computes PPDA
 # per match in a Python loop over every match in the competition/season (380 for
-# La Liga), measured at 4+ seconds uncached. Events are static between ingestion
-# runs, so process-lifetime caching is a real fix - restart the server after
-# re-ingesting to pick up new data.
-_profile_cache: dict[tuple[int, int], list[dict]] = {}
+# La Liga), measured at 4+ seconds uncached. Cached per process; the key includes
+# the season's match count, so newly ingested matches get a fresh entry (no
+# API restart needed).
+_profile_cache: dict[tuple[int, int, int], list[dict]] = {}  # key includes match count: new matches => fresh entry
 
 
 def season_team_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int) -> list[dict]:
     """PPDA + shot/goal volume per team, averaged across their matches in this competition/season."""
-    cache_key = (competition_id, season_id)
+    cache_key = (competition_id, season_id, db.season_match_count(conn, competition_id, season_id))
     if cache_key in _profile_cache:
         return _profile_cache[cache_key]
 

@@ -9,6 +9,7 @@ import sqlite3
 
 import numpy as np
 
+from halfspace import db
 from halfspace.features import is_progressive_pass
 
 MIN_MINUTES = 900  # ~10 full matches - reliability floor, matches scratchpad validation
@@ -29,15 +30,15 @@ SIMILARITY_FEATURES = [
 # (700k+ rows for a full league season) with a per-row Python check for progressive
 # actions - real measured cost was 4+ seconds for La Liga 2015/16, turning every
 # player-detail/similarity page load into a multi-second spinner. The underlying
-# events don't change between ingestion runs, so caching for the life of the API
-# process is a real fix, not a workaround - restart the server after re-ingesting
-# a competition to pick up new data.
-_profile_cache: dict[tuple[int, int], list[dict]] = {}
+# events only change when ingesting, so caching is a real fix, not a workaround. The key
+# includes the season's match count, so newly ingested matches get a fresh entry
+# without restarting the API.
+_profile_cache: dict[tuple[int, int, int], list[dict]] = {}  # key includes match count: new matches => fresh entry
 
 
 def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int) -> list[dict]:
     """One row per player with >=MIN_MINUTES in this competition/season, per-90 features."""
-    cache_key = (competition_id, season_id)
+    cache_key = (competition_id, season_id, db.season_match_count(conn, competition_id, season_id))
     if cache_key in _profile_cache:
         return _profile_cache[cache_key]
 

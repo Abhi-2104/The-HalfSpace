@@ -87,16 +87,15 @@ CREATE INDEX IF NOT EXISTS idx_event_match ON event(match_id);
 CREATE INDEX IF NOT EXISTS idx_event_player ON event(player_id);
 
 -- StatsBomb 360 freeze-frames: one row per event that has 360 coverage.
--- freeze_frame/visible_area stored as JSON text rather than exploded into a
--- row-per-visible-player: ~2900 events x ~12 players/match would be millions
--- of rows across the dataset for no query benefit - we always want a whole
--- frame at once (render all players for an event), never one player's dot in
--- isolation. Keyed by event_id so the shot -> "who was where" lookup is O(1).
+-- freeze_frame/visible_area are packed blobs (see halfspace/framepack.py), not exploded
+-- into a row-per-visible-player: that would be millions of rows for no query benefit - we
+-- always want a whole frame at once, never one player's dot in isolation. Keyed by
+-- event_id so the shot -> "who was where" lookup is O(1).
 CREATE TABLE IF NOT EXISTS freeze_frame (
     event_id TEXT PRIMARY KEY REFERENCES event(id),
     match_id INTEGER NOT NULL REFERENCES match(id),
-    freeze_frame TEXT NOT NULL,   -- JSON: [{teammate, actor, keeper, location:[x,y]}, ...]
-    visible_area TEXT             -- JSON: [x1,y1,x2,y2,...] camera-visible polygon
+    freeze_frame BLOB NOT NULL,   -- packed players: x, y (0.1 yd), teammate/actor/keeper flags
+    visible_area BLOB             -- packed camera-visible polygon [x1,y1,x2,y2,...]
 );
 CREATE INDEX IF NOT EXISTS idx_freeze_match ON freeze_frame(match_id);
 
@@ -136,3 +135,9 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn
+
+
+def season_match_count(conn: sqlite3.Connection, competition_id: int, season_id: int) -> int:
+    """Cheap data-version for per-season caches: ingesting new matches changes it."""
+    return conn.execute("SELECT COUNT(*) FROM match WHERE competition_id=? AND season_id=?",
+                        (competition_id, season_id)).fetchone()[0]

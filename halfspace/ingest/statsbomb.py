@@ -13,13 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import urlopen
 
+from halfspace import framepack
+
 BASE = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 LICENSE = "StatsBomb Open Data - free for research/non-commercial use, attribution required, no resale"
 RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw"
 
 
-def _fetch_json_cached(url: str, cache_path: Path):
-    if cache_path.exists():
+def _fetch_json_cached(url: str, cache_path: Path, refresh: bool = False):
+    if cache_path.exists() and not refresh:
         return json.loads(cache_path.read_text())
     with urlopen(url) as resp:
         data = json.loads(resp.read())
@@ -28,20 +30,23 @@ def _fetch_json_cached(url: str, cache_path: Path):
     return data
 
 
-def fetch_match_list(competition_id: int, season_id: int) -> list:
+def fetch_competitions(refresh: bool = False) -> list:
+    return _fetch_json_cached(f"{BASE}/competitions.json", RAW_DIR / "competitions.json", refresh)
+
+
+def fetch_match_list(competition_id: int, season_id: int, refresh: bool = False) -> list:
     """The competition/season match list - has real home/away team ids and final scores,
     which per-event data does NOT reliably give you (event order != home/away)."""
     url = f"{BASE}/matches/{competition_id}/{season_id}.json"
     cache_path = RAW_DIR / "matches" / f"{competition_id}_{season_id}.json"
-    return _fetch_json_cached(url, cache_path)
+    return _fetch_json_cached(url, cache_path, refresh)
 
 
 def fetch_competition_season_names(competition_id: int, season_id: int) -> tuple[str, str]:
     """Real names (e.g. 'FIFA World Cup', '2022') - ingest_match previously used
     placeholder names like 'competition_43' since it only ever saw per-match JSON,
     which doesn't carry the competition's display name."""
-    rows = _fetch_json_cached(f"{BASE}/competitions.json", RAW_DIR / "competitions.json")
-    for row in rows:
+    for row in fetch_competitions():
         if row["competition_id"] == competition_id and row["season_id"] == season_id:
             return row["competition_name"], row["season_name"]
     return f"competition_{competition_id}", f"season_{season_id}"
@@ -61,10 +66,12 @@ def _fetch_360(match_id: int) -> list | None:
     try:
         with urlopen(f"{BASE}/three-sixty/{match_id}.json") as resp:
             data = json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+    except (urllib.error.HTTPError, ValueError) as exc:
+        # 404 = no 360 for this match. ValueError = the upstream file is corrupt (match 3845506 has null bytes);
+        # either way record it as "no usable 360" instead of failing the whole match.
+        if isinstance(exc, ValueError) or exc.code == 404:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text("")  # negative-cache marker: known to have no 360
+            cache_path.write_text("")  # negative-cache marker
             return None
         raise
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -223,7 +230,8 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
             conn.execute(
                 """INSERT OR REPLACE INTO freeze_frame (event_id, match_id, freeze_frame, visible_area)
                    VALUES (?, ?, ?, ?)""",
-                (eid, match_id, json.dumps(fr.get("freeze_frame", [])), json.dumps(fr.get("visible_area", []))),
+                (eid, match_id, framepack.pack_players(fr.get("freeze_frame", [])),
+                 framepack.pack_area(fr.get("visible_area", []))),
             )
         has_360 = 1
 
@@ -233,3 +241,47 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
         (match_id, has_360),
     )
     conn.commit()
+
+
+def ingest_competition(conn: sqlite3.Connection, competition_id: int, season_id: int,
+                       fetch_360: bool = False, refresh: bool = False, log=print) -> tuple[int, list, int]:
+    """Ingest every not-yet-done match of a competition/season. Returns (new, failed, already_done).
+    refresh=True re-downloads the match list so matches added upstream since last run are seen.
+    Done = has events and (no 360 wanted, or has 360, or 360 known-missing via negative-cache marker);
+    so a refresh doesn't re-parse 360 matches that simply have no freeze-frames."""
+    match_list = fetch_match_list(competition_id, season_id, refresh)
+    comp_name, season_name = fetch_competition_season_names(competition_id, season_id)
+    conn.execute("INSERT OR IGNORE INTO competition (id, name) VALUES (?, ?)", (competition_id, comp_name))
+    conn.execute("UPDATE competition SET name = ? WHERE id = ?", (comp_name, competition_id))
+    conn.execute("INSERT OR IGNORE INTO season (id, competition_id, name) VALUES (?, ?, ?)",
+                 (season_id, competition_id, season_name))
+    conn.execute("UPDATE season SET name = ? WHERE id = ?", (season_name, season_id))
+    conn.commit()
+    log(f"{comp_name} {season_name}: {len(match_list)} matches{' (with 360)' if fetch_360 else ''}")
+
+    done = {r["match_id"]: r["has_360"] for r in conn.execute(
+        "SELECT match_id, has_360 FROM data_coverage WHERE has_events = 1 AND match_id IN "
+        "(SELECT id FROM match WHERE competition_id=? AND season_id=?)", (competition_id, season_id))}
+
+    def is_done(mid):
+        if mid not in done:
+            return False
+        return not fetch_360 or done[mid] or (RAW_DIR / "three-sixty" / f"{mid}.json").exists()
+
+    ok, failed = 0, []
+    for i, m in enumerate(match_list, 1):
+        mid = m["match_id"]
+        if not is_done(mid):
+            meta = {
+                "home_team_id": m["home_team"]["home_team_id"], "away_team_id": m["away_team"]["away_team_id"],
+                "home_score": m.get("home_score"), "away_score": m.get("away_score"), "match_date": m.get("match_date"),
+            }
+            try:
+                ingest_match(conn, mid, competition_id=competition_id, season_id=season_id,
+                             match_meta=meta, fetch_360=fetch_360)
+                ok += 1
+            except Exception as exc:
+                failed.append((mid, str(exc)))
+        if i % 20 == 0 or i == len(match_list):
+            log(f"  {i}/{len(match_list)} processed ({ok} new, {len(failed)} failed)")
+    return ok, failed, len(match_list) - ok - len(failed)
