@@ -14,6 +14,21 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   return res.json();
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.detail ?? `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export interface AskAnswer {
+  text: string;
+  provenance: { tool: string; arguments: Record<string, unknown> }[];
+  unresolved_caveats: string[];
+}
+
 export interface Overview {
   matches: number;
   events: number;
@@ -173,7 +188,87 @@ export interface TacticalConcept extends TacticalConceptSummary {
   limitations: string;
 }
 
+export interface Momentum {
+  match_id: number;
+  window_minutes: number;
+  minutes: number[];
+  momentum: number[]; // -100..100, positive = home team on top
+  home_threat: number[];
+  away_threat: number[];
+  xg_cumulative: { home: number[]; away: number[] };
+  moments: { minute: number; kind: "goal" | "big_chance"; team_id: number; player: string | null; xg: number; event_id: string; momentum_before: number }[];
+  note: string;
+}
+export interface MatchReport { match_id: number; text: string[]; note: string }
+export interface PossessionList {
+  kind: string;
+  possessions: { team: string; team_id: number; minute: number; duration_s: number; passes: number; shots: number; xg: number; goals: number; zone: string | null }[];
+  note: string;
+}
+export interface XgExplain {
+  event_id: string;
+  xg: number;
+  factors: { feature: string; value: number | string; effect: number }[];
+  method: string;
+}
+export interface ScoutMetric { metric: string; label: string; per90: number; per90_adjusted: number; percentile: number }
+export interface ScoutingCard {
+  player_id: number;
+  name: string;
+  role: string | null;
+  position_group: string;
+  minutes: number;
+  confidence: number;
+  pool_size: number;
+  metrics: ScoutMetric[];
+  passing: { passes: number; actual_pct: number; expected_pct: number; poe_per100: number; avg_difficulty: number; line_breaks_completed?: number; line_breaks_per_100_passes?: number } | null;
+  on_ball_value: { per90: number; per90_adjusted: number; percentile: number; by_action_per90: Record<string, number> } | null;
+  note?: string;
+}
+export interface PlaysLike {
+  role: string;
+  plays_like: { player_id: number; name: string; competition: string | null; role: string; distance: number }[];
+  note: string;
+}
+export interface Leaders {
+  metric: string;
+  label: string;
+  ranked_by: string;
+  players: { player_id: number; name: string; position_group: string; minutes: number; per90: number; adjusted: number; percentile: number; confidence: number }[];
+}
+export interface Goalkeepers {
+  ranked_by: string;
+  note: string;
+  goalkeepers: { player_id: number; name: string; shots_faced: number; goals_conceded: number; expected_goals_conceded: number; goals_prevented: number; prevented_per_100: number; save_pct: number; expected_save_pct: number }[];
+}
+export interface TeamStyle { team_id: number; team: string; matches: number; x: number; y: number; archetype: string; cluster: number; z: Record<string, number> }
+export interface TeamStyles { teams: TeamStyle[]; note: string }
+export interface SimilarStyles { team_id: number; archetype: string; most_similar: { team: string; competition: string | null; distance: number; archetype: string }[] }
+export interface PatternRanking {
+  kind: string;
+  ranked_by: string;
+  note: string;
+  teams: { team: string; team_id: number; matches: number; n: number; per_match: number; xg: number; xg_each: number; shot_rate: number; goals: number }[];
+}
+export interface ModelCard { id: string; name: string; limits: string; [k: string]: unknown }
+export interface MatchHit { id: number; match_date: string; home_score: number; away_score: number; home_team: string; away_team: string; competition_id: number; season_id: number }
+
 export const api = {
+  momentum: (matchId: number) => get<Momentum>(`/matches/${matchId}/momentum`),
+  matchReport: (matchId: number) => get<MatchReport>(`/matches/${matchId}/report`),
+  possessions: (matchId: number, kind: "counter" | "corner" | "free_kick") => get<PossessionList>(`/matches/${matchId}/possessions/${kind}`),
+  xgExplain: (eventId: string) => get<XgExplain>(`/events/${eventId}/xg-explain`),
+  scoutingCard: (c: number, s: number, playerId: number) => get<ScoutingCard>(`/competitions/${c}/seasons/${s}/players/${playerId}/profile`),
+  playsLike: (c: number, s: number, playerId: number, topN = 8) => get<PlaysLike>(`/competitions/${c}/seasons/${s}/players/${playerId}/plays-like`, { top_n: topN }),
+  leaders: (c: number, s: number, metric: string, positionGroup: string, topN = 15) =>
+    get<Leaders>(`/competitions/${c}/seasons/${s}/leaders`, { metric, ...(positionGroup ? { position_group: positionGroup } : {}), top_n: topN }),
+  goalkeepers: (c: number, s: number, topN = 15) => get<Goalkeepers>(`/competitions/${c}/seasons/${s}/goalkeepers`, { top_n: topN }),
+  teamStyles: (c: number, s: number) => get<TeamStyles>(`/competitions/${c}/seasons/${s}/team-styles`),
+  similarStyles: (teamId: number, c: number, s: number) => get<SimilarStyles>(`/teams/${teamId}/similar-styles`, { competition_id: c, season_id: s }),
+  patterns: (c: number, s: number, kind: "counter" | "corner" | "free_kick") => get<PatternRanking>(`/competitions/${c}/seasons/${s}/patterns/${kind}`),
+  models: () => get<{ models: ModelCard[] }>("/models"),
+  xtGrid: () => get<{ nx: number; ny: number; values: number[][] }>("/models/xt/grid"),
+  searchMatches: (team: string, opponent?: string) => get<{ matches: MatchHit[] }>("/matches/search", { team, ...(opponent ? { opponent } : {}) }),
   overview: () => get<Overview>("/overview"),
   competitions: () => get<{ competitions: Competition[] }>("/competitions"),
   matches: (competitionId: number, seasonId: number) =>
@@ -209,6 +304,8 @@ export const api = {
   seasonPlayerHeatmap: (competitionId: number, seasonId: number, playerId: number) =>
     get<Heatmap>(`/competitions/${competitionId}/seasons/${seasonId}/players/${playerId}/heatmap`),
   teamHeatmap: (matchId: number, teamId: number) => get<Heatmap>(`/matches/${matchId}/teams/${teamId}/heatmap`),
+  ask: (question: string, history: { role: "user" | "assistant"; content: string }[]) =>
+    post<AskAnswer>("/agent/ask", { question, history }),
   passNetwork: (matchId: number, teamId: number) => get<PassNetwork>(`/matches/${matchId}/teams/${teamId}/pass-network`),
 };
 

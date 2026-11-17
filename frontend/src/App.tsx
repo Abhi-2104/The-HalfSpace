@@ -17,6 +17,8 @@ import { Teams } from "./pages/Teams";
 import { Tactics } from "./pages/Tactics";
 import { TacticDetail } from "./pages/TacticDetail";
 import { Compare } from "./pages/Compare";
+import { Ask } from "./pages/Ask";
+import { HowItWorks } from "./pages/HowItWorks";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -33,6 +35,8 @@ function AnimatedRoutes() {
         <Route path="/tactics" element={<PageTransition><Tactics /></PageTransition>} />
         <Route path="/tactics/:slug" element={<PageTransition><TacticDetail /></PageTransition>} />
         <Route path="/compare" element={<PageTransition><Compare /></PageTransition>} />
+        <Route path="/how-it-works" element={<PageTransition><HowItWorks /></PageTransition>} />
+        <Route path="/ask" element={<PageTransition><Ask /></PageTransition>} />
       </Routes>
     </AnimatePresence>
   );

@@ -1,45 +1,55 @@
 import type { PassNetwork } from "../../lib/api";
+import { PlayerMark } from "./PlayerMark";
+
+export interface NetworkSide {
+  network: PassNetwork;
+  color: string;
+  /** the away side is mirrored so the two teams face each other across the halfway line */
+  mirror: boolean;
+}
+
+const last = (name: string | null) => (name ?? "").trim().split(/\s+/).slice(-1)[0];
 
 /**
- * Pass network on the turf: chalk-white links under accent-coloured players.
- * Link width and opacity grow with the number of passes between a pair; a
- * player's size grows with their pass involvement. One colour on purpose (this
- * is one team's shape, not a comparison), so size and thickness carry the data.
+ * Both teams' pass networks on one pitch, each in its own colour, facing each other. The
+ * selected team is drawn last at full strength; the other is greyed back but still readable.
+ * Link width and opacity grow with passes between a pair; a player's size with their pass involvement.
  */
-export function PassNetworkLayer({ network }: { network: PassNetwork }) {
-  const nodeById = new Map(network.nodes.map((n) => [n.player_id, n]));
-  const maxPasses = Math.max(...network.nodes.map((n) => n.passes), 1);
-  const maxEdge = Math.max(...network.edges.map((e) => e.passes), 1);
-
+export function PassNetworkLayer({ sides, selected }: { sides: NetworkSide[]; selected: number }) {
+  const order = [...sides.keys()].sort((a, b) => Number(a === selected) - Number(b === selected));
   return (
     <g>
-      <defs>
-        <filter id="net-shadow" x="-60%" y="-60%" width="220%" height="220%">
-          <feDropShadow dx="0" dy="0.4" stdDeviation="0.4" floodColor="#04101f" floodOpacity="0.4" />
-        </filter>
-      </defs>
+      {order.map((i) => (
+        <Side key={i} side={sides[i]} faded={i !== selected} />
+      ))}
+    </g>
+  );
+}
+
+function Side({ side, faded }: { side: NetworkSide; faded: boolean }) {
+  const { network, color, mirror } = side;
+  const pos = (n: { x: number; y: number }): [number, number] => (mirror ? [120 - n.x, 80 - n.y] : [n.x, n.y]);
+  const byId = new Map(network.nodes.map((n) => [n.player_id, n]));
+  const maxPasses = Math.max(...network.nodes.map((n) => n.passes), 1);
+  const maxEdge = Math.max(...network.edges.map((e) => e.passes), 1);
+  const nodes = [...network.nodes].sort((a, b) => pos(a)[1] - pos(b)[1]);
+  return (
+    <g style={faded ? { filter: "grayscale(0.85)" } : undefined} opacity={faded ? 0.5 : 1}>
       {network.edges.map((e, i) => {
-        const a = nodeById.get(e.a);
-        const b = nodeById.get(e.b);
+        const a = byId.get(e.a);
+        const b = byId.get(e.b);
         if (!a || !b) return null;
+        const [x1, y1] = pos(a);
+        const [x2, y2] = pos(b);
         const t = e.passes / maxEdge;
-        return (
-          <line
-            key={i}
-            x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-            stroke="#fff"
-            strokeLinecap="round"
-            strokeWidth={0.35 + t * 1.7}
-            opacity={0.22 + t * 0.55}
-          />
-        );
+        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeLinecap="round" strokeWidth={0.35 + t * 1.8} opacity={0.25 + t * 0.6} />;
       })}
-      {network.nodes.map((n) => {
-        const r = 1.5 + (n.passes / maxPasses) * 2.6;
+      {nodes.map((n) => {
+        const [x, y] = pos(n);
         return (
-          <g key={n.player_id} filter="url(#net-shadow)">
-            <circle cx={n.x} cy={n.y} r={r} fill="var(--color-marker)" stroke="#fff" strokeWidth={0.55} />
-            <title>{n.name} — {n.passes} passes</title>
+          <g key={n.player_id}>
+            <PlayerMark x={x} y={y} color={color} scale={0.7 + (n.passes / maxPasses) * 0.55} label={faded ? undefined : last(n.name)} />
+            <title>{n.name}: {n.passes} passes</title>
           </g>
         );
       })}

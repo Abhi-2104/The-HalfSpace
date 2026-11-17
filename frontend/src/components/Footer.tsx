@@ -20,6 +20,8 @@ export function Footer() {
               ["/teams", "Teams"],
               ["/tactics", "Tactics"],
               ["/compare", "Compare"],
+              ["/ask", "Ask"],
+              ["/how-it-works", "How this works"],
             ].map(([to, label]) => (
               <li key={to}>
                 <Link to={to} className="transition-colors hover:text-ink-0">

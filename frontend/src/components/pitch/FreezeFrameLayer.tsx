@@ -1,10 +1,11 @@
 import { motion } from "framer-motion";
 import type { FreezeFrame } from "../../lib/api";
+import { PlayerMark } from "./PlayerMark";
 
 /**
  * The 360 freeze-frame: every visible player where they stood the instant a shot
  * was taken. Blue is the shooter's team, orange the defenders, the keeper is
- * marked GK, and the shooter is larger with a double ring. The warm wedge shows
+ * marked GK, and the shooter is larger with a pulsing ring. The warm wedge shows
  * how much of the goal the shooter could see from there, with the distance and
  * angle computed from the shot's real position. The faint dashed area is what the
  * broadcast camera could see: players outside it are simply not in the data.
@@ -15,12 +16,6 @@ export function FreezeFrameLayer({ frame, ballLocation }: { frame: FreezeFrame; 
 
   return (
     <g>
-      <defs>
-        <filter id="ff-shadow" x="-60%" y="-60%" width="220%" height="220%">
-          <feDropShadow dx="0" dy="0.4" stdDeviation="0.4" floodColor="#04101f" floodOpacity="0.45" />
-        </filter>
-      </defs>
-
       {areaPoints && <polygon points={areaPoints} fill="#fff" fillOpacity={0.07} stroke="#fff" strokeOpacity={0.35} strokeWidth={0.25} strokeDasharray="1.2 1" />}
 
       {goal && (
@@ -30,27 +25,17 @@ export function FreezeFrameLayer({ frame, ballLocation }: { frame: FreezeFrame; 
         </g>
       )}
 
-      {frame.freeze_frame.map((p, i) => {
+      {[...frame.freeze_frame].sort((a, b) => a.location[1] - b.location[1]).map((p, i) => {
         const [x, y] = p.location;
         const color = p.teammate ? "var(--color-team-a)" : "var(--color-team-b)";
-        const r = p.actor ? 1.9 : 1.5;
         return (
           <motion.g
-            key={i}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35, delay: i * 0.025, ease: [0.34, 1.56, 0.64, 1] }}
-            style={{ transformOrigin: `${x}px ${y}px` }}
-            filter="url(#ff-shadow)"
+            key={`${x}-${y}-${i}`}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: i * 0.03, ease: [0.34, 1.56, 0.64, 1] }}
           >
-            {p.actor && <circle cx={x} cy={y} r={r + 1.5} fill="none" stroke="#fff" strokeWidth={0.45} />}
-            <circle cx={x} cy={y} r={r} fill={color} stroke="#fff" strokeWidth={p.keeper ? 0.7 : 0.45} />
-            {p.keeper && (
-              <text x={x} y={y + 0.5} textAnchor="middle" fontSize={1.4} fontWeight={700} fill="#fff" style={{ pointerEvents: "none" }}>
-                GK
-              </text>
-            )}
-            {p.actor && <circle cx={x} cy={y} r={0.55} fill="#fff" />}
+            <PlayerMark x={x} y={y} color={color} scale={p.actor ? 1.25 : 1} shooter={p.actor} keeper={p.keeper} />
           </motion.g>
         );
       })}

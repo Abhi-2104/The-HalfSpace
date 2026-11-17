@@ -3,6 +3,7 @@ import { api, type PlayerProfile, type TeamProfile } from "../lib/api";
 import { useCompetitionSelection } from "../lib/useCompetitionSelection";
 import { CompetitionPicker } from "../components/CompetitionPicker";
 import { CompareBar } from "../components/CompareBar";
+import { matches } from "../components/list";
 
 const PLAYER_METRICS: [keyof PlayerProfile, string, boolean][] = [
   ["goals_p90", "Goals/90", false],
@@ -129,15 +130,26 @@ function EntitySelect({
   onChange: (id: number) => void;
   options?: readonly (readonly [number, string])[];
 }) {
+  const [filter, setFilter] = useState("");
+  const shown = (options ?? []).filter(([id, name]) => id === value || matches(filter, name));
   return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="rounded-lg border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
-    >
-      {options?.map(([id, name]) => (
-        <option key={id} value={id}>{name}</option>
-      ))}
-    </select>
+    <div className="flex flex-col gap-1.5">
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Type to filter…"
+        aria-label="Filter the list"
+        className="rounded-lg border border-pitch-700 bg-pitch-900 px-3 py-1.5 text-xs text-ink-0 outline-none placeholder:text-ink-2 focus:border-marker-bright"
+      />
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="rounded-lg border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
+      >
+        {shown.map(([id, name]) => (
+          <option key={id} value={id}>{name}</option>
+        ))}
+      </select>
+    </div>
   );
 }

@@ -11,6 +11,7 @@ const LINKS = [
   ["/teams", "Teams"],
   ["/tactics", "Tactics"],
   ["/compare", "Compare"],
+  ["/ask", "Ask"],
 ] as const;
 
 // the stored values stay "beginner" / "analyst"; only the wording shown to people changes
@@ -21,7 +22,7 @@ function ModeSwitch() {
   return (
     <div
       className="relative flex rounded-full border border-pitch-800 bg-pitch-900/60 p-0.5 text-xs font-medium"
-      title="Plain-language explainers first, or the raw stats and methods."
+      title="Simple explainers first, or the full stats and methods."
     >
       {(["beginner", "analyst"] as const).map((m) => (
         <button
@@ -53,7 +54,7 @@ export function Nav() {
     <header className="sticky top-0 z-30 border-b border-pitch-800/80 bg-pitch-950/75 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 lg:px-10 py-3">
         <NavLink to="/" aria-label="The Halfspace by Abhijith Varma, home" onClick={() => setOpen(false)}>
-          <Brand />
+          <Brand size="nav" />
         </NavLink>
 
         <nav className="hidden items-center gap-1 text-sm font-medium lg:flex" aria-label="Main">

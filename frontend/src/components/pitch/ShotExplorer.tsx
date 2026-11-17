@@ -6,6 +6,8 @@ import { Pitch } from "./Pitch";
 import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
 import { MetricInfo } from "../MetricInfo";
+import { WhyXg } from "../match/WhyXg";
+import { ExpandedView } from "./ExpandedView";
 
 /**
  * The signature "what made this chance?" interaction. Left: xG shot map for the
@@ -13,6 +15,9 @@ import { MetricInfo } from "../MetricInfo";
  * (every player's real position that instant) + a plain-language read of the
  * chance. This is the X-factor moment - real spatial data, free.
  */
+// the settled 3D view sits a little right and low in its frame; nudge it to the middle and fill the card better
+const HOME = { zoom: 1, ox: -28, oy: 0 };
+
 export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   matchId: number;
   homeTeamId: number;
@@ -24,6 +29,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   const [frame, setFrame] = useState<FreezeFrame | null>(null);
   const [loadingFrame, setLoadingFrame] = useState(false);
   const [view, setView] = useState<"map" | "3d">("map");
+  const [expanded, setExpanded] = useState(false);
   const isoProgress = useMotionValue(0.42); // the settled isometric camera, framed to fit the whole pitch
 
   useEffect(() => {
@@ -47,11 +53,20 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   }, [shots]);
 
   return (
+    <>
+    <ExpandedView open={expanded} onClose={() => setExpanded(false)} shots={shots} homeTeamId={homeTeamId} homeTeam={homeTeam} awayTeam={awayTeam}
+      progress={isoProgress} selected={selected} frame={frame} loadingFrame={loadingFrame} onPick={pick} />
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-start">
       <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="font-display text-lg font-bold text-ink-0">Shot map</h3>
           <div className="flex items-center gap-3">
+            {view === "3d" && (
+              <button type="button" onClick={() => setExpanded(true)} aria-label="Expand the 3D view" className="flex items-center gap-1.5 rounded-full border border-pitch-800 px-3 py-1 text-xs font-medium text-ink-1 transition-colors hover:border-marker hover:text-ink-0">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+                Expand
+              </button>
+            )}
             <span className="flex items-center text-xs text-ink-2">{view === "map" ? "dot size = xG" : "height = xG"}<MetricInfo metric="xg" /></span>
             <div className="flex rounded-full border border-pitch-800 p-0.5 text-xs font-medium" role="group" aria-label="Shot map view">
               {([["map", "Map"], ["3d", "3D"]] as const).map(([v, label]) => (
@@ -69,14 +84,14 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
           </div>
         </div>
         {/* one stage for both views, so switching never changes the card's height */}
-        <div className={`flex aspect-[128/88] items-center justify-center rounded-2xl ${view === "3d" ? "bg-pitch-950/40" : ""}`}>
+        <div className={`flex aspect-[128/88] items-center justify-center overflow-hidden rounded-2xl ${view === "3d" ? "bg-pitch-950/40" : ""}`}>
           {shots ? (
             view === "map" ? (
               <Pitch>
                 <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
               </Pitch>
             ) : (
-              <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} className="w-full" />
+              <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} interactive home={HOME} className="w-full" />
             )
           ) : (
             <div className="h-full w-full animate-pulse rounded-2xl bg-pitch-800/40" aria-label="Loading shots" />
@@ -86,7 +101,8 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-a" /> {homeTeam}</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-b" /> {awayTeam}</span>
           <span className="text-ink-2">{view === "map" ? "ring = goal" : "ringed top = goal"}</span>
-          {anyFreeze && <span className="text-marker-bright">{view === "map" ? "click a hollow-ringed shot" : "click a column"} to see everyone</span>}
+          {view === "3d" && <span className="text-ink-2">+/− or pinch to zoom, drag to turn, shift-drag to pan</span>}
+          {anyFreeze && <span className="text-marker-bright">{view === "map" ? "select a ringed shot" : "select a column"} to see every player</span>}
         </div>
         {quickPicks.length > 0 && (
           <div className="mt-4 border-t border-pitch-800 pt-3">
@@ -120,7 +136,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
               className="pt-16 text-center text-sm text-ink-2">
               {anyFreeze
                 ? "Pick a shot, or use a quick pick, to see exactly where every player stood the moment it was taken."
-                : "This match has no 360 freeze-frame data, so the shot map is all there is to show. Matches that have it carry a lit 360 tick in their coverage mark."}
+                : "This match has no 360 freeze-frame data, so the shot map is all there is to show. Matches that have it show a check beside 360 in their coverage mark."}
             </motion.p>
           )}
           {selected && (
@@ -132,6 +148,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
                 </Pitch>
               )}
               {!loadingFrame && !frame && <p className="pt-12 text-center text-sm text-clay">No freeze-frame for this shot.</p>}
+              {frame && <WhyXg eventId={selected.id} />}
               <p className="mt-3 text-sm text-ink-1">
                 <span className="text-ink-0">{selected.player_name}</span> ({selected.team_name}),{" "}
                 {selected.minute}'{selected.second}" — {selected.outcome_name}
@@ -143,5 +160,6 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
         </AnimatePresence>
       </div>
     </div>
+    </>
   );
 }

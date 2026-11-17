@@ -4,6 +4,9 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, type SimilarPlayersResult, type Heatmap } from "../lib/api";
 import { Pitch } from "../components/pitch/Pitch";
 import { HeatmapLayer } from "../components/pitch/HeatmapLayer";
+import { ScoutingCardView } from "../components/player/ScoutingCard";
+import { PlaysLike } from "../components/player/PlaysLike";
+import { useAsync } from "../lib/useAsync";
 import { MetricInfo } from "../components/MetricInfo";
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -20,6 +23,7 @@ export function PlayerDetail() {
   const [result, setResult] = useState<SimilarPlayersResult | null>(null);
   const [heatmap, setHeatmap] = useState<Heatmap | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const scout = useAsync(() => api.scoutingCard(competitionId, seasonId, Number(playerId)), [competitionId, seasonId, playerId]);
 
   useEffect(() => {
     setResult(null);
@@ -37,7 +41,7 @@ export function PlayerDetail() {
   return (
     <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
       <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{target.name}</h1>
-      <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {target.minutes} min</p>
+      <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {Math.round(target.minutes).toLocaleString()} min</p>
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 lg:content-start">
@@ -67,9 +71,12 @@ export function PlayerDetail() {
         </div>
       </div>
 
-      <h2 className="mt-12 font-display text-2xl font-bold text-ink-0">Most similar players</h2>
+      {scout.data && <div className="mt-8"><ScoutingCardView card={scout.data} /></div>}
+      <div className="mt-12"><PlaysLike competitionId={competitionId} seasonId={seasonId} playerId={Number(playerId)} /></div>
+
+      <h2 className="mt-12 font-display text-2xl font-bold text-ink-0">Most similar in this league</h2>
       <p className="mt-1 text-sm text-ink-1">
-        Peer group: {peer_group} ({peer_group_size} players). Cosine similarity over standardized per-90 stats.
+        Compared with {peer_group_size} other {peer_group} players in this league.
       </p>
       {reliability_note && (
         <p className="mt-2 rounded-lg border border-marker/40 bg-marker/10 px-3 py-2 text-sm text-marker-bright">

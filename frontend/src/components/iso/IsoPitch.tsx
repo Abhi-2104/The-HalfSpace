@@ -44,11 +44,16 @@ export interface Cam {
 
 const KEYS: Array<[number, Cam]> = [
   [0.0, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
-  [0.14, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
-  // zoom 0.86 about the middle of the turf keeps the whole slab, run-off and tall columns inside the frame
-  [0.4, { tilt: 41, yaw: -30, rise: 1, zoom: 0.86, fx: 70, fy: 40, tokens: 0 }],
-  [0.58, { tilt: 41, yaw: -30, rise: 1, zoom: 0.95, fx: 76, fy: 40, tokens: 0 }],
-  [0.8, { tilt: 52, yaw: -8, rise: 0.3, zoom: 1.7, fx: 101, fy: 40, tokens: 0.2 }],
+  [0.1, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
+  // the map tips over and swings round as the columns rise
+  [0.24, { tilt: 50, yaw: -62, rise: 0.75, zoom: 0.9, fx: 62, fy: 40, tokens: 0 }],
+  // settles on the isometric view that fits the whole slab (zoom 0.86 about the middle of the turf)
+  [0.38, { tilt: 41, yaw: -30, rise: 1, zoom: 0.86, fx: 70, fy: 40, tokens: 0 }],
+  // low skim over the left half, then a swing to the far side, then back over the right
+  [0.5, { tilt: 30, yaw: 34, rise: 1, zoom: 1.22, fx: 34, fy: 40, tokens: 0 }],
+  [0.62, { tilt: 36, yaw: 58, rise: 1, zoom: 1.12, fx: 78, fy: 34, tokens: 0 }],
+  [0.74, { tilt: 44, yaw: -18, rise: 0.8, zoom: 1.35, fx: 92, fy: 40, tokens: 0 }],
+  [0.88, { tilt: 52, yaw: -6, rise: 0.25, zoom: 1.75, fx: 101, fy: 40, tokens: 0.3 }],
   [1.0, { tilt: 54, yaw: 0, rise: 0, zoom: 1.9, fx: 102, fy: 40, tokens: 1 }],
 ];
 
@@ -121,10 +126,21 @@ export interface IsoPitchProps {
   progress: MotionValue<number>;
   freeze?: FreezeFrame | null;
   onSelect?: (shot: ShotXg) => void;
+  /** zoom buttons, ctrl/pinch zoom, drag to orbit, shift/right-drag to pan */
+  interactive?: boolean;
+  /** the resting view for an interactive pitch (reset returns here): zoom and a screen-space nudge */
+  home?: { zoom?: number; ox?: number; oy?: number };
   className?: string;
 }
 
-export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, className }: IsoPitchProps) {
+export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, interactive, home, className }: IsoPitchProps) {
+  // the viewer's own camera on top of the scripted one: zoom, pan (screen units), orbit (degrees)
+  const rest = { zoom: home?.zoom ?? 1, ox: home?.ox ?? 0, oy: home?.oy ?? 0 };
+  const user = useRef({ ...rest, dyaw: 0, dtilt: 0 });
+  const drawRef = useRef<(p: number) => void>(() => {});
+  const wrap = useRef<HTMLDivElement>(null);
+  const moved = useRef(false);
+  const [zoomed, setZoomed] = useState(false);
   const els = useRef(new Map<string, Element>());
   const reg = useCallback(
     (key: string) => (node: Element | null) => {
@@ -172,7 +188,11 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
     (p: number) => {
       const E = els.current;
       const set = (key: string, attr: string, val: string) => E.get(key)?.setAttribute(attr, val);
-      const cam = cameraAt(p);
+      const u = user.current;
+      const cam = { ...cameraAt(p) };
+      cam.zoom *= u.zoom;
+      cam.yaw += u.dyaw;
+      cam.tilt = Math.min(90, Math.max(18, cam.tilt + u.dtilt));
       const k = S0 * cam.zoom;
       const tilt = rad(cam.tilt);
       const st = Math.sin(tilt);
@@ -185,7 +205,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
         const dy = y - cam.fy;
         const rx = dx * cyw - dy * syw;
         const ry = dx * syw + dy * cyw;
-        return [CX + rx * k, CY + (ry * st - z * ct) * k, ry];
+        return [CX + u.ox + rx * k, CY + u.oy + (ry * st - z * ct) * k, ry];
       };
 
       // turf
@@ -322,7 +342,95 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
     [items, best, freeze, geo],
   );
 
+  drawRef.current = draw;
   useMotionValueEvent(progress, "change", draw);
+
+  const redraw = () => drawRef.current(progress.get());
+  const zoomBy = (factor: number, cx = 0, cy = 0) => {
+    const u = user.current;
+    const z = Math.min(4, Math.max(Math.min(1, rest.zoom), u.zoom * factor));
+    const r = z / u.zoom;
+    // keep the point under the cursor (cx, cy: offset from the view centre) fixed while zooming
+    u.ox = (u.ox - cx) * r + cx;
+    u.oy = (u.oy - cy) * r + cy;
+    u.zoom = z;
+    setZoomed(Math.abs(z - rest.zoom) > 0.01 || u.dyaw !== 0 || u.dtilt !== 0);
+    redraw();
+  };
+  const reset = () => {
+    user.current = { ...rest, dyaw: 0, dtilt: 0 };
+    setZoomed(false);
+    redraw();
+  };
+
+  useEffect(() => {
+    const el = wrap.current;
+    if (!interactive || !el) return;
+    const toView = (e: { clientX: number; clientY: number }) => {
+      const r = el.getBoundingClientRect();
+      return [((e.clientX - r.left) / r.width - 0.5) * VBW, ((e.clientY - r.top) / r.height - 0.5) * VBH - (CY - VBH / 2)] as const;
+    };
+    // pinch / ctrl+wheel zoom only, so ordinary scrolling still scrolls the page
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const [cx, cy] = toView(e);
+      zoomBy(Math.exp(-e.deltaY * 0.012), cx, cy);
+    };
+    const pts = new Map<number, [number, number]>();
+    let pinch = 0;
+    let pan = false;
+    const onDown = (e: PointerEvent) => {
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      pan = e.shiftKey || e.button === 2;
+      moved.current = false;
+      if (pts.size === 2) pinch = 0;
+    };
+    const onMove = (e: PointerEvent) => {
+      const prev = pts.get(e.pointerId);
+      if (!prev) return;
+      const dx = e.clientX - prev[0];
+      const dy = e.clientY - prev[1];
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (Math.abs(dx) + Math.abs(dy) > 0 && !moved.current && Math.hypot(dx, dy) >= 1) moved.current = true;
+      const u = user.current;
+      const scale = VBW / el.getBoundingClientRect().width;
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (pinch) zoomBy(d / pinch, ...toView({ clientX: (a[0] + b[0]) / 2, clientY: (a[1] + b[1]) / 2 }));
+        pinch = d;
+      } else if (pan || u.zoom > rest.zoom + 0.01 && e.pointerType === "touch") {
+        u.ox += dx * scale;
+        u.oy += dy * scale;
+        redraw();
+      } else if (moved.current) {
+        u.dyaw = Math.max(-80, Math.min(80, u.dyaw + dx * 0.4));
+        u.dtilt = Math.max(-25, Math.min(45, u.dtilt - dy * 0.3));
+        setZoomed(true);
+        redraw();
+      }
+    };
+    const onUp = (e: PointerEvent) => { pts.delete(e.pointerId); pinch = 0; };
+    const noMenu = (e: Event) => e.preventDefault();
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    el.addEventListener("contextmenu", noMenu);
+    el.addEventListener("dblclick", reset);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("contextmenu", noMenu);
+      el.removeEventListener("dblclick", reset);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive]);
   useEffect(() => {
     // draw once the skeleton exists, and again if data changes
     const id = requestAnimationFrame(() => draw(progress.get()));
@@ -337,7 +445,14 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
   const nTok = freeze?.freeze_frame.length ?? 0;
 
   return (
-    <div className={`relative ${className ?? ""}`} style={{ aspectRatio: `${VBW} / ${VBH}` }}>
+    <div ref={wrap} className={`relative ${className ?? ""}`} style={{ aspectRatio: `${VBW} / ${VBH}`, touchAction: interactive ? "none" : undefined, cursor: interactive ? "grab" : undefined }}>
+      {interactive && (
+        <div className="absolute right-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl border border-pitch-800 bg-pitch-900/90 text-ink-0 shadow-md backdrop-blur">
+          <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.4)} className="grid h-8 w-8 place-items-center text-lg leading-none hover:bg-pitch-800">+</button>
+          <button type="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.4)} className="grid h-8 w-8 place-items-center border-t border-pitch-800 text-lg leading-none hover:bg-pitch-800">−</button>
+          {zoomed && <button type="button" aria-label="Reset view" onClick={reset} className="grid h-8 w-8 place-items-center border-t border-pitch-800 text-xs hover:bg-pitch-800">⟲</button>}
+        </div>
+      )}
       <svg viewBox={`0 0 ${VBW} ${VBH}`} className="absolute inset-0 h-full w-full overflow-visible" role="img" aria-label="Isometric football pitch. Each shot of the match stands on the pitch as a column; taller columns are better chances.">
         <defs>
           <radialGradient id="iso-sheen" cx="0.3" cy="0.15" r="0.95">
@@ -402,7 +517,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
               style={{ cursor: it.shot.has_freeze_frame && onSelect ? "pointer" : "default" }}
               onPointerEnter={() => { hoverRef.current = it.i; setHover(it); }}
               onPointerLeave={() => { hoverRef.current = null; setHover(null); }}
-              onClick={() => it.shot.has_freeze_frame && onSelect?.(it.shot)}
+              onClick={() => !moved.current && it.shot.has_freeze_frame && onSelect?.(it.shot)}
             >
               <path ref={reg(`cb${it.i}`)} fill={teamVar(it.team)} />
               <path ref={reg(`cs${it.i}`)} fill="url(#iso-shade)" />
