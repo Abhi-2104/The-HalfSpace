@@ -16,12 +16,13 @@
 
 ## What you can do with it
 
-- **See what made a chance.** Click any shot in a match and see where every visible player was standing the instant it was taken, from real StatsBomb 360 freeze-frames. No paid tracking feed needed. A 3D view stands every shot up as a column, taller for a better chance.
-- **Get walked through a match.** The home page is a scroll story: the pitch tilts from a flat map to an isometric view, the columns rise, and the camera zooms in on a real shot. Match pages have a plain-language walkthrough of every goal and big chance.
-- **Explore players and teams.** Per-90 profiles, role-aware "players like this one", head-to-head comparisons, and pressing intensity (PPDA). The comparison flags itself when it isn't apples to apples, for example a striker against a goalkeeper.
-- **Learn the tactics.** 19 tactical concepts, each tagged with how much the data can actually support it, from "educational" to "unsupported".
-- **Ask the analyst.** An AI agent answers questions by calling the same query layer the API uses, and shows exactly which calls backed its answer.
-- **Switch depth.** A Beginner/Analyst toggle changes every metric explainer from plain English to method notes. Jargon is always one tap from a real explanation.
+- **See what made a chance.** Click any shot in a match and see where every visible player was standing the instant it was taken, from real StatsBomb 360 freeze-frames. A "Why this chance" panel shows which factors raised or lowered its rating. A 3D view stands every shot up as a column, taller for a better chance. It zooms, turns, and opens full screen.
+- **Read how a match flowed.** A written match report, a "who's on top" chart minute by minute, an xG race for both teams, both teams' pass networks on one pitch, and lists of counterattacks, corners and free kicks.
+- **Scout players and teams.** A scouting card per player (percentiles within the same league season and position, role, passing against difficulty, impact on the ball), players who play alike across leagues, league leaders for 12 metrics, goalkeeper ratings, a map of how every team plays, and set-piece rankings.
+- **Learn the tactics.** 19 concepts split into playing styles and tactics, filterable by phase of play and by how much the data can really support each one.
+- **Ask the analyst.** Ask a football question and get a formatted answer built from the same query layer the API uses.
+- **Find things fast.** Every list is searchable, sortable and filterable, and matches can be searched across all seasons.
+- **Switch depth.** "I'm a beginner" or "I'm a nerd" changes how much detail pages show, from plain-language explainers to the full stats. A **How this works** page explains every calculated number and what it leaves out.
 
 <p align="center">
   <img src="docs/screenshots/story-columns.png" width="49%" alt="Scroll story, step two: the shots of the 2022 final stand up as columns, blue for Argentina and orange for France">
@@ -29,6 +30,18 @@
 </p>
 
 ![Match page in the dark theme: the 3D shot map on the left and, on the right, the freeze-frame for the clicked shot](docs/screenshots/match-3d.png)
+
+![The match flow card: who was on top minute by minute, and the xG race for both teams](docs/screenshots/match-flow.png)
+
+<p align="center">
+  <img src="docs/screenshots/player-card.png" width="49%" alt="A player's scouting card: percentile bars for twelve metrics within the same league season and position">
+  <img src="docs/screenshots/team-style-map.png" width="49%" alt="The team style map: every La Liga team placed by how it plays, with Barcelona selected">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tactics.png" width="49%" alt="The Tactics page: cards for each concept, split into playing styles and tactics">
+  <img src="docs/screenshots/ask-answer.png" width="49%" alt="The Ask page: a formatted answer comparing two players, with a table">
+</p>
 
 <p align="center">
   <img src="docs/screenshots/mobile-home.png" width="30%" alt="The home page on a phone">
@@ -40,7 +53,7 @@
 - **One pitch, one number.** The isometric pitch is hand-written SVG, not WebGL. A single `progress` value (0 to 1) drives a camera (top-down, isometric, zoomed on the penalty area), and each frame is written straight to the DOM, so scrolling never re-renders React.
 - **Smooth scroll.** [Lenis](https://github.com/darkroomengineering/lenis) runs from Motion's own frame loop, so scroll-linked animation stays in step with it. With a reduced-motion setting you get native scrolling and the intro animation is skipped.
 - **Light and dark.** One set of design tokens with two sets of values, a toggle in the nav, and no flash on load. Blue and orange mark the two teams in every chart, which stays readable for colour-blind users.
-- **Phones.** Every page fits a 390px screen, and the Beginner/Analyst switch moves into the mobile menu.
+- **Phones.** Every page fits a 390px screen, and the "I'm a beginner" / "I'm a nerd" switch moves into the mobile menu.
 
 ## The data
 
@@ -53,7 +66,7 @@ Everything is real, open and reproducible. Nothing is mocked or generated.
 | SkillCorner Open Data | A-League 2024/25 (10 matches) | Broadcast tracking, modeled and extrapolated |
 | IDSSE | Bundesliga 2022/23, 1. and 2. division (7 matches) | Optical tracking at 25 fps |
 
-Each match carries a coverage record (events, 360, tracking), and the UI shows it as a three-tick strip on every card. The app never implies richer data than a match actually has.
+Each match carries a coverage record (events, 360, tracking), and the UI shows it as three check marks on every match. The app never implies richer data than a match actually has.
 
 ## How it works
 
@@ -98,7 +111,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cd frontend && cp .env.example .env && npm install && npm run dev   # UI on :5173
 ```
 
-Open <http://localhost:5173> and try **Matches → World Cup 2022 → the final**, click a ringed shot, then **Walk me through this match**.
+Open <http://localhost:5173> and try **Matches → World Cup 2022 → the final**, click a ringed shot, then **Guided match story**.
 
 The full setup guide (all competitions, tracking data, the agent, the test suite) is in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 
@@ -112,7 +125,7 @@ The test suite (68 tests) runs against the real dataset and has caught real bugs
 
 ## Status and limitations
 
-- The agent has an API (`POST /agent/ask`, with conversation history) but no chat panel in the UI yet.
+- The analyst is a stateless chat: the browser sends the conversation back each time, and nothing is stored on the server.
 - Free-tier LLM limits, softened by a 3-model fallback chain.
 - Only 17 matches have tracking data. 360 freeze-frames cover 12 of the 24 competition-seasons (none for the women's leagues).
 - Local only: SQLite, no auth, no deployment, no CI.
