@@ -3,7 +3,7 @@ import type { FreezeFrame } from "../../lib/api";
 
 /**
  * The 360 freeze-frame: every visible player as a dot at their real position
- * the instant a shot was taken. Teammates (of the shooter) in amber, opponents
+ * the instant a shot was taken. Teammates (of the shooter) in blue, opponents
  * in blue, keeper ringed, the shooter (actor) larger. The visible-area polygon
  * is drawn faint so the viewer knows the camera didn't see the whole pitch -
  * honesty about coverage, same principle as the coverage strip.
@@ -15,7 +15,7 @@ export function FreezeFrameLayer({ frame, ballLocation }: { frame: FreezeFrame; 
       {areaPoints && <polygon points={areaPoints} fill="var(--color-ink-0)" opacity={0.04} />}
 
       {frame.freeze_frame.map((p, i) => {
-        const color = p.teammate ? "var(--color-marker-bright)" : "var(--color-info)";
+        const color = p.teammate ? "var(--color-team-a)" : "var(--color-team-b)";
         const r = p.actor ? 2 : 1.4;
         return (
           <motion.g

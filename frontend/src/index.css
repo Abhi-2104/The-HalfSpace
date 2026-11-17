@@ -1,65 +1,152 @@
 @import "tailwindcss";
 
 /*
-  HalfSpace design tokens. Dark-first by deliberate choice, not a light/dark
-  toggle - the product's own identity is a "field analyst's dossier at night."
-  Categorical/data colors below are validated against the dataviz skill's
-  six-check validator (lightness band, chroma floor, CVD separation,
-  normal-vision floor, contrast) on our actual surfaces - not hand-picked.
+  The Halfspace design tokens. One token set, two value sets (light and dark).
+  Token NAMES are stable so components never branch on theme; only values change.
+
+  Roles
+    pitch-*   surfaces: page (950), card (900), hairline (800), hover hairline (700)
+    ink-*     text: primary (0), secondary (1), muted (2)
+    marker    the one action colour (buttons, links, focus). on-accent is the text on it.
+    team-a/b  the two teams in every chart. Blue vs orange survives colour blindness.
+    warm      brand orange (the "space" in the logo); same family as team-b
+    clay      errors and "unsupported" only
+    grass-*   the pitch surface in the isometric scene
 */
 @theme {
-  --font-display: "Big Shoulders Display", system-ui, sans-serif;
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-mono: "DM Sans", system-ui, sans-serif;
 
-  /* surfaces */
-  --color-pitch-950: #0b0e11; /* page */
-  --color-pitch-900: #12161b; /* card */
-  --color-pitch-800: #1b2129; /* raised / hairline border */
-  --color-pitch-700: #262e38; /* hover border */
+  /* light (default) */
+  --color-pitch-950: #eaf1fa;
+  --color-pitch-900: #ffffff;
+  --color-pitch-800: #d3deed;
+  --color-pitch-700: #b3c5dc;
 
-  /* ink */
-  --color-ink-0: #eceef0; /* primary text */
-  --color-ink-1: #9aa3af; /* secondary text */
-  --color-ink-2: #626b76; /* muted / captions */
+  --color-ink-0: #14213d;
+  --color-ink-1: #44557a;
+  --color-ink-2: #596889;
 
-  /* data + brand (validated categorical set, see docs above) */
-  --color-marker: #b08a22; /* amber - primary brand accent, "detectable"/positive */
-  --color-marker-bright: #e2b93b; /* UI-only tint of marker, not used as a data/series color */
-  --color-clay: #c94b3f; /* danger, "unsupported" tier, off-target */
-  --color-pitch-green: #2d9c8c; /* "good"/complete, tracking-observed */
-  --color-info: #4c8fe0; /* secondary series, links */
+  --color-marker: #4b63f5;
+  --color-marker-bright: #3347d6;
+  --color-on-accent: #ffffff;
+
+  --color-team-a: #1f8fd6;
+  --color-team-b: #e8590c;
+  --color-warm: #e8590c;
+
+  --color-clay: #c92a4a;
+  --color-pitch-green: #1e8e5a;
+  --color-info: #2b7de0;
+
+  --color-grass-1: #8fd3a5;
+  --color-grass-2: #7cc794;
+  --color-grass-side: #4c9f6b;
+  --color-grass-line: #ffffff;
 }
 
 :root {
+  color-scheme: light;
+  --page-glow: rgba(255, 255, 255, 0.85);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
+  --color-pitch-950: #0c1230;
+  --color-pitch-900: #131b45;
+  --color-pitch-800: #232f66;
+  --color-pitch-700: #34448c;
+
+  --color-ink-0: #eef2ff;
+  --color-ink-1: #b1bce8;
+  --color-ink-2: #8d99cc;
+
+  --color-marker: #5568f0;
+  --color-marker-bright: #a5b4ff;
+  --color-on-accent: #ffffff;
+
+  --color-team-a: #5cc4ff;
+  --color-team-b: #ff8a3d;
+  --color-warm: #ff8a3d;
+
+  --color-clay: #ff7a93;
+  --color-pitch-green: #4ade9a;
+  --color-info: #6ab0ff;
+
+  --color-grass-1: #1f6b52;
+  --color-grass-2: #195a46;
+  --color-grass-side: #11402f;
+  --color-grass-line: #cfe9dc;
+  --page-glow: rgba(90, 112, 247, 0.2);
+}
+
+html {
+  scroll-behavior: auto;
 }
 
 body {
   margin: 0;
-  background: var(--color-pitch-950);
+  min-height: 100vh;
+  background-color: var(--color-pitch-950);
+  background-image: radial-gradient(1000px 520px at 72% -8%, var(--page-glow), transparent 70%);
+  background-repeat: no-repeat;
   color: var(--color-ink-0);
   font-family: var(--font-sans);
+  font-feature-settings: "tnum" 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-marker) 40%, transparent);
+  background: color-mix(in oklab, var(--color-marker) 35%, transparent);
 }
 
-/* signature element: the coverage strip. Three tick marks (events / tracking / 360)
-   that appear on every match/player/team card - the one visual motif that shows up
-   everywhere and embodies the product's core claim: never imply richer data than
-   what actually backs a given record. */
+/* numbers that count or change should not jitter */
+.tabular-nums,
+.stat-number {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-marker-bright);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* a short, theme-wide colour fade, only while the toggle is used */
+html.theme-anim *,
+html.theme-anim *::before,
+html.theme-anim *::after {
+  transition:
+    background-color 0.4s ease,
+    color 0.4s ease,
+    border-color 0.4s ease,
+    fill 0.4s ease,
+    stroke 0.4s ease !important;
+}
+
+/* signature element: the coverage strip. Three ticks (events / tracking / 360)
+   on every match card, so the UI never implies richer data than what backs it. */
 .coverage-tick {
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
 }
 .coverage-tick[data-on="true"] {
-  background: var(--color-marker-bright);
+  background: var(--color-marker);
 }
 .coverage-tick[data-on="false"] {
   background: var(--color-pitch-800);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

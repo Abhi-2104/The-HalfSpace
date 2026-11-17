@@ -108,11 +108,11 @@ export function MatchStory() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
-      <Link to={`/matches/${id}`} className="font-mono text-xs uppercase tracking-wide text-ink-2 hover:text-marker-bright">← back to match</Link>
-      <h1 className="mt-2 font-display text-4xl font-bold text-ink-0">
+      <Link to={`/matches/${id}`} className="font-mono text-xs text-ink-2 hover:text-marker-bright">← back to match</Link>
+      <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">
         {match.home_team} <span className="text-marker-bright">{match.home_score}–{match.away_score}</span> {match.away_team}
       </h1>
-      <p className="mt-1 font-mono text-xs uppercase tracking-wide text-ink-2">
+      <p className="mt-1 font-mono text-xs text-ink-2">
         {match.competition_name} {match.season_name} — {match.match_date} · walkthrough
       </p>
 
@@ -122,7 +122,7 @@ export function MatchStory() {
         <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1fr]">
           {/* sticky pitch — follows the scroll */}
           <div className="lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+            <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
               <div className="mb-2 flex items-baseline justify-between">
                 <span className="font-mono text-lg font-semibold tabular-nums text-ink-0">
                   {match.home_team.slice(0, 3).toUpperCase()} {cur.homeScore}–{cur.awayScore} {match.away_team.slice(0, 3).toUpperCase()}
@@ -138,7 +138,7 @@ export function MatchStory() {
               </Pitch>
               <p className="mt-2 text-[11px] text-ink-2">
                 {frame
-                  ? "Amber = attacking team, blue = defenders, ringed = keeper, white = ball."
+                  ? "Blue = attacking team, orange = defenders, ringed = keeper, white = ball."
                   : cur.shot.has_freeze_frame ? "Loading positions…" : "No 360 data for this moment — showing the shot location only."}
               </p>
             </div>
@@ -150,11 +150,11 @@ export function MatchStory() {
               <div
                 key={m.shot.id}
                 ref={(el) => { stepRefs.current[i] = el; }}
-                className={`rounded-sm border p-5 transition ${i === active ? "border-marker bg-pitch-900" : "border-pitch-800 bg-pitch-950 opacity-60"}`}
+                className={`rounded-lg border p-5 transition ${i === active ? "border-marker bg-pitch-900" : "border-pitch-800 bg-pitch-950 opacity-60"}`}
               >
                 <div className="flex items-baseline gap-2">
                   <span className="font-mono text-sm tabular-nums text-marker-bright">{m.shot.minute}'</span>
-                  {m.isGoal && <span className="rounded-sm bg-marker px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-ink-0">Goal</span>}
+                  {m.isGoal && <span className="rounded-lg bg-marker px-1.5 py-0.5 font-mono text-[10px] font-bold text-ink-0">Goal</span>}
                 </div>
                 <p className="mt-2 text-ink-1">
                   <span className="text-ink-0">{m.shot.player_name ?? "A player"}</span> ({m.shot.team_name}){" "}
@@ -181,7 +181,7 @@ export function MatchStory() {
 
 function ShotDot({ shot, home }: { shot: ShotXg; home: boolean }) {
   if (shot.x == null) return null;
-  const color = home ? "var(--color-marker-bright)" : "var(--color-info)";
+  const color = home ? "var(--color-team-a)" : "var(--color-team-b)";
   const r = shot.xg != null ? Math.max(1, Math.sqrt(shot.xg) * 4) : 1.5;
   return (
     <g>

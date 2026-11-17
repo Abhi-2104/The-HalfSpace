@@ -26,23 +26,24 @@ export function Players() {
   }, [competitionId, seasonId]);
 
   const sorted = players ? [...players].sort((a, b) => b[sort] - a[sort]) : null;
+  const top = sorted?.[0]?.[sort] || 1; // bars are relative to the leader
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold text-ink-0">Players</h1>
+        <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Players</h1>
         {competitions && (
           <CompetitionPicker competitions={competitions} competitionId={competitionId} seasonId={seasonId} onSelect={select} />
         )}
       </div>
       <p className="mt-1 text-xs text-ink-2">Minimum 900 minutes played — a reliability floor, not an arbitrary cutoff.</p>
 
-      <div className="mt-4 flex gap-2 font-mono text-xs uppercase tracking-wide">
+      <div className="mt-4 flex gap-2 font-mono text-xs">
         {SORTS.map(([key, label]) => (
           <button
             key={key}
             onClick={() => setSort(key)}
-            className={`rounded-sm px-2.5 py-1 transition ${sort === key ? "bg-marker text-ink-0" : "text-ink-1 hover:text-ink-0"}`}
+            className={`rounded-lg px-2.5 py-1 transition ${sort === key ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}
           >
             {label}
           </button>
@@ -50,17 +51,21 @@ export function Players() {
       </div>
 
       <motion.div variants={listContainer} initial="hidden" animate="show" key={sort} className="mt-4 divide-y divide-pitch-800 border-y border-pitch-800">
-        {sorted?.map((p) => (
+        {sorted?.map((p, i) => (
           <motion.div key={p.player_id} variants={listItem}>
             <Link
               to={`/players/${p.player_id}?competition_id=${competitionId}&season_id=${seasonId}`}
-              className="flex items-center justify-between px-2 py-3 transition hover:translate-x-1 hover:bg-pitch-900"
+              className="flex items-center gap-4 px-2 py-3 transition hover:translate-x-1 hover:bg-pitch-900"
             >
-              <div>
+              <span className="w-6 text-right text-xs tabular-nums text-ink-2">{i + 1}</span>
+              <div className="min-w-0 flex-1">
                 <span className="text-ink-0">{p.name}</span>
-                <span className="ml-2 font-mono text-xs text-ink-2">{p.team} · {p.position}</span>
+                <span className="ml-2 text-xs text-ink-2">{p.team} · {p.position}</span>
               </div>
-              <span className="font-mono text-sm tabular-nums text-marker-bright">{p[sort].toFixed(2)}</span>
+              <div className="hidden h-1.5 w-36 overflow-hidden rounded-full bg-pitch-800 sm:block" aria-hidden>
+                <div className="h-full rounded-full bg-marker" style={{ width: `${(p[sort] / top) * 100}%` }} />
+              </div>
+              <span className="w-12 text-right text-sm font-semibold tabular-nums text-marker-bright">{p[sort].toFixed(2)}</span>
             </Link>
           </motion.div>
         ))}

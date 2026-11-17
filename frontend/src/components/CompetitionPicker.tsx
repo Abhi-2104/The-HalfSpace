@@ -19,7 +19,7 @@ export function CompetitionPicker({
         const [c, s] = e.target.value.split(":").map(Number);
         onSelect(c, s);
       }}
-      className="rounded-sm border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
+      className="rounded-lg border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
     >
       {competitions.map((c) => (
         <option key={`${c.competition_id}:${c.season_id}`} value={`${c.competition_id}:${c.season_id}`}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { api, type ShotXg, type FreezeFrame } from "../../lib/api";
+import { IsoPitch } from "../iso/IsoPitch";
 import { Pitch } from "./Pitch";
 import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
@@ -22,6 +23,8 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   const [selected, setSelected] = useState<ShotXg | null>(null);
   const [frame, setFrame] = useState<FreezeFrame | null>(null);
   const [loadingFrame, setLoadingFrame] = useState(false);
+  const [view, setView] = useState<"map" | "3d">("map");
+  const isoProgress = useMotionValue(0.58); // isometric camera, leaning toward the attacking third
 
   useEffect(() => {
     api.shotsXg(matchId).then((r) => setShots(r.shots)).catch(() => setShots([]));
@@ -38,27 +41,46 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+      <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="font-display text-lg font-bold text-ink-0">Shot map</h3>
-          <span className="flex items-center font-mono text-[10px] uppercase tracking-wide text-ink-2">dot size = xG<MetricInfo metric="xg" /></span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center text-xs text-ink-2">{view === "map" ? "dot size = xG" : "height = xG"}<MetricInfo metric="xg" /></span>
+            <div className="flex rounded-full border border-pitch-800 p-0.5 text-xs font-medium" role="group" aria-label="Shot map view">
+              {([["map", "Map"], ["3d", "3D"]] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  aria-pressed={view === v}
+                  className={`rounded-full px-3 py-1 transition-colors ${view === v ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         {shots ? (
-          <Pitch>
-            <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
-          </Pitch>
+          view === "map" ? (
+            <Pitch>
+              <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
+            </Pitch>
+          ) : (
+            <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} className="-mx-1" />
+          )
         ) : (
           <div className="aspect-[3/2]" />
         )}
-        <div className="mt-3 flex flex-wrap gap-4 font-mono text-xs text-ink-1">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-marker-bright" /> {homeTeam}</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-info" /> {awayTeam}</span>
-          <span className="text-ink-2">ring = goal</span>
-          {anyFreeze && <span className="text-marker-bright">click a hollow-ringed shot →</span>}
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-1">
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-a" /> {homeTeam}</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-b" /> {awayTeam}</span>
+          <span className="text-ink-2">{view === "map" ? "ring = goal" : "ringed top = goal"}</span>
+          {anyFreeze && <span className="text-marker-bright">{view === "map" ? "click a hollow-ringed shot" : "click a column"} to see everyone</span>}
         </div>
       </div>
 
-      <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+      <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
         <h3 className="mb-2 font-display text-lg font-bold text-ink-0">What made this chance?</h3>
         <AnimatePresence mode="wait">
           {!selected && (
@@ -82,7 +104,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
                 <span className="text-ink-0">{selected.player_name}</span> ({selected.team_name}),{" "}
                 {selected.minute}'{selected.second}" — {selected.outcome_name}
                 {selected.xg != null && <>, <span className="text-marker-bright">xG {selected.xg.toFixed(2)}</span></>}.
-                {" "}White dot = ball. Amber = shooter's team, blue = defenders, ringed = keeper.
+                {" "}White dot = ball. Blue = shooter's team, orange = defenders, ringed = keeper.
               </p>
             </motion.div>
           )}

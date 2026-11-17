@@ -10,7 +10,7 @@ const STYLES: Record<string, { bg: string; fg: string; label: string }> = {
 export function ConfidenceBadge({ tier }: { tier: string }) {
   const s = STYLES[tier] ?? STYLES.educational;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide ${s.bg} ${s.fg}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 font-mono text-[11px] ${s.bg} ${s.fg}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {s.label}
     </span>

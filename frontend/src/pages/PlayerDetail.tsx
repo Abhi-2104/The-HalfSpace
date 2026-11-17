@@ -35,24 +35,24 @@ export function PlayerDetail() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
-      <h1 className="font-display text-4xl font-bold text-ink-0">{target.name}</h1>
+      <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{target.name}</h1>
       <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {target.minutes} min</p>
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 lg:content-start">
           {Object.entries(FEATURE_LABELS).map(([key, label]) => (
-            <div key={key} className="rounded-sm border border-pitch-800 bg-pitch-900 p-3">
+            <div key={key} className="rounded-2xl border border-pitch-800 bg-pitch-900 p-3">
               <div className="font-mono text-lg font-semibold tabular-nums text-ink-0">
                 {(target as unknown as Record<string, number>)[key].toFixed(2)}
               </div>
-              <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-2">{label}</div>
+              <div className="mt-0.5 font-mono text-[10px] text-ink-2">{label}</div>
             </div>
           ))}
         </div>
-        <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+        <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Touch heatmap<MetricInfo metric="heatmap" /></h2>
-            <span className="font-mono text-[10px] uppercase tracking-wide text-ink-2">attacking →</span>
+            <span className="font-mono text-[10px] text-ink-2">attacking →</span>
           </div>
           {heatmap ? (
             heatmap.peak ? (
@@ -71,7 +71,7 @@ export function PlayerDetail() {
         Peer group: {peer_group} ({peer_group_size} players). Cosine similarity over standardized per-90 stats.
       </p>
       {reliability_note && (
-        <p className="mt-2 rounded-sm border border-marker/40 bg-marker/10 px-3 py-2 text-sm text-marker-bright">
+        <p className="mt-2 rounded-lg border border-marker/40 bg-marker/10 px-3 py-2 text-sm text-marker-bright">
           {reliability_note}
         </p>
       )}

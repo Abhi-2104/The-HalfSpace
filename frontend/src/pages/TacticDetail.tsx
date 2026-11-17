@@ -18,7 +18,7 @@ export function TacticDetail() {
     <div className="mx-auto max-w-2xl px-6 py-12">
       <Link to="/tactics" className="font-mono text-xs text-ink-2 hover:text-ink-0">← All concepts</Link>
       <div className="mt-3 flex items-center gap-3">
-        <h1 className="font-display text-4xl font-bold text-ink-0">{concept.name}</h1>
+        <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{concept.name}</h1>
         <ConfidenceBadge tier={concept.confidence} />
       </div>
 
@@ -30,14 +30,14 @@ export function TacticDetail() {
 
       {concept.detection_method && (
         <Section title="Detection method">
-          <code className="rounded-sm bg-pitch-900 px-2 py-1 font-mono text-sm text-marker-bright">{concept.detection_method}</code>
+          <code className="rounded-lg bg-pitch-900 px-2 py-1 font-mono text-sm text-marker-bright">{concept.detection_method}</code>
         </Section>
       )}
 
       <Section title="Required data">
         <ul className="flex flex-wrap gap-2">
           {concept.required_data.map((d) => (
-            <li key={d} className="rounded-sm border border-pitch-700 px-2 py-1 font-mono text-xs text-ink-1">{d}</li>
+            <li key={d} className="rounded-lg border border-pitch-700 px-2 py-1 font-mono text-xs text-ink-1">{d}</li>
           ))}
         </ul>
       </Section>
@@ -46,7 +46,7 @@ export function TacticDetail() {
         <Section title="Related concepts">
           <div className="flex flex-wrap gap-2">
             {concept.related_concepts.map((slug) => (
-              <Link key={slug} to={`/tactics/${slug}`} className="rounded-sm border border-pitch-700 px-2 py-1 font-mono text-xs text-marker-bright hover:border-marker-bright">
+              <Link key={slug} to={`/tactics/${slug}`} className="rounded-lg border border-pitch-700 px-2 py-1 font-mono text-xs text-marker-bright hover:border-marker-bright">
                 {slug}
               </Link>
             ))}
@@ -64,7 +64,7 @@ export function TacticDetail() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mt-8 border-t border-pitch-800 pt-6">
-      <h2 className="font-mono text-xs uppercase tracking-widest text-ink-2">{title}</h2>
+      <h2 className="font-mono text-xs text-ink-2">{title}</h2>
       <div className="mt-3">{children}</div>
     </div>
   );

@@ -33,7 +33,7 @@ export function MetricInfo({ metric }: { metric: keyof typeof GLOSSARY }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 top-6 z-20 w-64 rounded-sm border border-pitch-700 bg-pitch-800 p-3 text-left shadow-lg"
+            className="absolute left-0 top-6 z-20 w-64 rounded-lg border border-pitch-700 bg-pitch-800 p-3 text-left shadow-lg"
           >
             <span className="block font-display text-sm font-bold text-ink-0">{info.label}</span>
             <span className="mt-1 block text-xs leading-relaxed text-ink-1">{info.beginner}</span>

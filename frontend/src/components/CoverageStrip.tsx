@@ -23,7 +23,7 @@ export function CoverageStrip({
       {items.map(([label, on]) => (
         <span key={label} className="flex items-center gap-1">
           <span className="coverage-tick" data-on={on} />
-          <span className={`font-mono text-[10px] uppercase tracking-wide ${on ? "text-ink-1" : "text-pitch-700"}`}>
+          <span className={`font-mono text-[10px] ${on ? "text-ink-1" : "text-pitch-700"}`}>
             {label}
           </span>
         </span>

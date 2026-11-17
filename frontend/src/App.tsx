@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { ModeProvider } from "./lib/mode";
+import { ThemeProvider } from "./lib/theme";
 import { Nav } from "./components/Nav";
-import { PitchTexture } from "./components/PitchTexture";
+import { Footer } from "./components/Footer";
+import { SmoothScroll } from "./components/SmoothScroll";
 import { PageTransition } from "./components/PageTransition";
 import { Explore } from "./pages/Explore";
 import { Matches } from "./pages/Matches";
@@ -37,14 +39,18 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <ModeProvider>
-      <BrowserRouter>
-        <PitchTexture />
-        <Nav />
-        <main>
-          <AnimatedRoutes />
-        </main>
-      </BrowserRouter>
-    </ModeProvider>
+    <ThemeProvider>
+      <ModeProvider>
+        <BrowserRouter>
+          <SmoothScroll>
+            <Nav />
+            <main>
+              <AnimatedRoutes />
+            </main>
+            <Footer />
+          </SmoothScroll>
+        </BrowserRouter>
+      </ModeProvider>
+    </ThemeProvider>
   );
 }

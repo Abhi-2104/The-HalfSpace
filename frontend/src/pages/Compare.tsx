@@ -65,14 +65,14 @@ export function Compare() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold text-ink-0">Compare</h1>
+        <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Compare</h1>
         <div className="flex gap-2">
-          <div className="flex rounded-sm border border-pitch-700 font-mono text-xs uppercase">
+          <div className="flex rounded-lg border border-pitch-700 font-mono text-xs">
             {(["players", "teams"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`px-3 py-2 transition ${mode === m ? "bg-marker text-ink-0" : "text-ink-1 hover:text-ink-0"}`}
+                className={`px-3 py-2 transition ${mode === m ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}
               >
                 {m}
               </button>
@@ -98,7 +98,7 @@ export function Compare() {
       </div>
 
       {caveat && (
-        <p className="mt-6 rounded-sm border border-marker/40 bg-marker/10 px-3 py-2 text-sm text-marker-bright">{caveat}</p>
+        <p className="mt-6 rounded-lg border border-marker/40 bg-marker/10 px-3 py-2 text-sm text-marker-bright">{caveat}</p>
       )}
 
       {mode === "players" && pA && pB && (
@@ -133,7 +133,7 @@ function EntitySelect({
     <select
       value={value ?? ""}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="rounded-sm border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
+      className="rounded-lg border border-pitch-700 bg-pitch-900 px-3 py-2 font-mono text-sm text-ink-0 outline-none focus:border-marker-bright"
     >
       {options?.map(([id, name]) => (
         <option key={id} value={id}>{name}</option>

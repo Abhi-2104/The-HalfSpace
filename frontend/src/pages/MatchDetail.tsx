@@ -45,10 +45,10 @@ export function MatchDetail() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
-      <p className="font-mono text-xs uppercase tracking-wide text-ink-2">
+      <p className="font-mono text-xs text-ink-2">
         {match.competition_name} {match.season_name} — {match.match_date}
       </p>
-      <h1 className="mt-2 font-display text-4xl font-bold text-ink-0">
+      <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">
         {match.home_team} <span className="text-marker-bright">{match.home_score}–{match.away_score}</span> {match.away_team}
       </h1>
       <div className="mt-3">
@@ -56,7 +56,7 @@ export function MatchDetail() {
       </div>
 
       <Link to={`/matches/${id}/story`}
-        className="mt-4 inline-flex items-center gap-2 rounded-sm border border-marker/50 bg-marker/10 px-3 py-2 font-mono text-xs uppercase tracking-wide text-marker-bright transition hover:bg-marker/20">
+        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-marker/50 bg-marker/10 px-3 py-2 font-mono text-xs text-marker-bright transition hover:bg-marker/20">
         ▶ Walk me through this match
       </Link>
 
@@ -67,13 +67,13 @@ export function MatchDetail() {
 
       <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1fr]">
         {/* pass network */}
-        <div className="rounded-sm border border-pitch-800 bg-pitch-900 p-4">
+        <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Pass network<MetricInfo metric="pass_network" /></h2>
-            <div className="flex rounded-sm border border-pitch-700 font-mono text-[11px] uppercase">
+            <div className="flex rounded-lg border border-pitch-700 font-mono text-[11px]">
               {(["home", "away"] as const).map((side) => (
                 <button key={side} onClick={() => setNetTeam(side)}
-                  className={`px-2.5 py-1 transition ${netTeam === side ? "bg-marker text-ink-0" : "text-ink-1 hover:text-ink-0"}`}>
+                  className={`px-2.5 py-1 transition ${netTeam === side ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}>
                   {side === "home" ? match.home_team : match.away_team}
                 </button>
               ))}
@@ -105,7 +105,7 @@ export function MatchDetail() {
             {sequences && sequences.length === 0 && <p className="text-sm text-ink-2">None detected.</p>}
             <ul className="space-y-2">
               {sequences?.map((c, i) => (
-                <li key={i} className="rounded-sm border border-pitch-800 bg-pitch-950 px-3 py-2 text-sm">
+                <li key={i} className="rounded-lg border border-pitch-800 bg-pitch-950 px-3 py-2 text-sm">
                   <span className="font-mono text-ink-2">{c.start_minute}'{c.start_second}"</span>{" "}
                   <span className="text-ink-0">{c.trigger_type} → shot in {c.time_to_shot_s}s, {c.distance_m}m upfield</span>{" "}
                   <span className="font-mono text-xs text-marker-bright">({c.shot_outcome})</span>

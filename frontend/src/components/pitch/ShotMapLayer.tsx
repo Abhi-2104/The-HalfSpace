@@ -3,7 +3,7 @@ import type { ShotXg } from "../../lib/api";
 
 /**
  * xG shot map: dot area scales with xG (our own xG-lite model), goals ringed,
- * home team amber / away blue. A shot with a 360 freeze-frame is clickable
+ * home team blue / away orange. A shot with a 360 freeze-frame is clickable
  * (subtle ring cue) - clicking asks "what made this chance?".
  */
 export function ShotMapLayer({
@@ -23,7 +23,7 @@ export function ShotMapLayer({
         if (s.x == null) return null;
         const isGoal = s.outcome_name === "Goal";
         const isHome = s.team_id === homeTeamId;
-        const color = isHome ? "var(--color-marker-bright)" : "var(--color-info)";
+        const color = isHome ? "var(--color-team-a)" : "var(--color-team-b)";
         // radius from xG: sqrt so AREA scales with xG, floor so tiny chances stay visible
         const r = 0.9 + Math.sqrt(s.xg ?? 0.05) * 3.2;
         const clickable = s.has_freeze_frame && onSelect;

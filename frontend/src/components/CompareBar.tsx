@@ -25,11 +25,11 @@ export function CompareBar({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] uppercase tracking-wide text-ink-2">
+      <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] text-ink-2">
         <span>{label}</span>
       </div>
-      <Row name={nameA} value={valueA} pct={pctA} format={format} highlight={aWins} color="var(--color-marker-bright)" />
-      <Row name={nameB} value={valueB} pct={pctB} format={format} highlight={bWins} color="var(--color-info)" />
+      <Row name={nameA} value={valueA} pct={pctA} format={format} highlight={aWins} color="var(--color-team-a)" />
+      <Row name={nameB} value={valueB} pct={pctB} format={format} highlight={bWins} color="var(--color-team-b)" />
     </div>
   );
 }

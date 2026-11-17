@@ -20,7 +20,7 @@ export function Teams() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl font-bold text-ink-0">Teams</h1>
+        <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Teams</h1>
         {competitions && (
           <CompetitionPicker competitions={competitions} competitionId={competitionId} seasonId={seasonId} onSelect={select} />
         )}
