@@ -67,7 +67,9 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
               <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={pick} />
             </Pitch>
           ) : (
-            <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} className="-mx-1" />
+            <div className="overflow-hidden rounded-xl">
+              <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={isoProgress} onSelect={pick} />
+            </div>
           )
         ) : (
           <div className="aspect-[3/2]" />

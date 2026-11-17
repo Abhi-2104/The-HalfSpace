@@ -45,7 +45,7 @@ export function MetricInfo({ metric }: { metric: keyof typeof GLOSSARY }) {
             {info.concept && (
               <Link
                 to={`/tactics/${info.concept}`}
-                className="mt-2 block font-mono text-[11px] text-marker-bright hover:underline"
+                className="mt-2 block font-mono text-xs text-marker-bright hover:underline"
                 onMouseDown={(e) => e.preventDefault()}
               >
                 Learn more →

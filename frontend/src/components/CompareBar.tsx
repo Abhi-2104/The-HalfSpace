@@ -25,7 +25,7 @@ export function CompareBar({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] text-ink-2">
+      <div className="mb-1.5 flex items-center justify-between font-mono text-xs text-ink-2">
         <span>{label}</span>
       </div>
       <Row name={nameA} value={valueA} pct={pctA} format={format} highlight={aWins} color="var(--color-team-a)" />

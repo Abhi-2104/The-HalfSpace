@@ -78,7 +78,9 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2.5">
-          <ModeSwitch />
+          <div className="hidden md:block">
+            <ModeSwitch />
+          </div>
           <ThemeToggle />
           <button
             type="button"
@@ -115,6 +117,10 @@ export function Nav() {
                   {label}
                 </NavLink>
               ))}
+              <div className="flex items-center gap-3 border-t border-pitch-800 py-3">
+                <span className="text-sm text-ink-1">Detail level</span>
+                <ModeSwitch />
+              </div>
             </div>
           </motion.nav>
         )}

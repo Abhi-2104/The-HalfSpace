@@ -70,7 +70,7 @@ export function MatchDetail() {
         <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Pass network<MetricInfo metric="pass_network" /></h2>
-            <div className="flex rounded-lg border border-pitch-700 font-mono text-[11px]">
+            <div className="flex rounded-lg border border-pitch-700 font-mono text-xs">
               {(["home", "away"] as const).map((side) => (
                 <button key={side} onClick={() => setNetTeam(side)}
                   className={`px-2.5 py-1 transition ${netTeam === side ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}>
@@ -80,7 +80,7 @@ export function MatchDetail() {
             </div>
           </div>
           {network ? <Pitch><PassNetworkLayer network={network} /></Pitch> : <div className="aspect-[3/2]" />}
-          {network && <p className="mt-2 text-[11px] text-ink-2">{network.cutoff_note}. Node size = passes made; edge width = passes between the pair.</p>}
+          {network && <p className="mt-2 text-xs text-ink-2">{network.cutoff_note}. Node size = passes made; edge width = passes between the pair.</p>}
         </div>
 
         {/* stats + sequences */}

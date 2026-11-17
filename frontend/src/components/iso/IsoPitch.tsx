@@ -19,13 +19,16 @@ const VBW = 1000;
 const VBH = 640;
 const CX = 500;
 const CY = 352;
-const S0 = 5.6; // screen units per yard at zoom 1
+const S0 = 5.2; // screen units per yard at zoom 1
 const PW = 120;
 const PH = 80;
 const SLAB = 4;
-const M = 14; // run-off margin around the pitch, in yards
-// mowing stripes: one every 10 yards, plus half-width bands in the run-off
-const STRIPES: Array<[number, number]> = [[-M, 0], ...Array.from({ length: 12 }, (_, i) => [i * 10, i * 10 + 10] as [number, number]), [PW, PW + M]];
+// run-off around the pitch, in yards. Bigger behind the right goal, where the camera ends up.
+const MXL = 14;
+const MXR = 34;
+const MY = 14;
+// mowing stripes: one every 10 yards, plus bands in the run-off
+const STRIPES: Array<[number, number]> = [[-MXL, 0], ...Array.from({ length: 12 }, (_, i) => [i * 10, i * 10 + 10] as [number, number]), [PW, PW + MXR]];
 const GOAL_H = 2.67;
 const GOAL_D = 2.4;
 
@@ -44,8 +47,8 @@ const KEYS: Array<[number, Cam]> = [
   [0.14, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
   [0.4, { tilt: 41, yaw: -30, rise: 1, zoom: 1, fx: 66, fy: 40, tokens: 0 }],
   [0.58, { tilt: 41, yaw: -30, rise: 1, zoom: 1.1, fx: 74, fy: 40, tokens: 0 }],
-  [0.8, { tilt: 52, yaw: -8, rise: 0.3, zoom: 1.8, fx: 105, fy: 40, tokens: 0.2 }],
-  [1.0, { tilt: 54, yaw: 0, rise: 0, zoom: 2.0, fx: 106, fy: 40, tokens: 1 }],
+  [0.8, { tilt: 52, yaw: -8, rise: 0.3, zoom: 1.7, fx: 101, fy: 40, tokens: 0.2 }],
+  [1.0, { tilt: 54, yaw: 0, rise: 0, zoom: 1.9, fx: 102, fy: 40, tokens: 1 }],
 ];
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -186,14 +189,14 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, classN
 
       // turf
       // the turf runs past the touchlines (a run-off apron), so the pitch never ends abruptly
-      const corners = [P(-M, -M), P(PW + M, -M), P(PW + M, PH + M), P(-M, PH + M)];
+      const corners = [P(-MXL, -MY), P(PW + MXR, -MY), P(PW + MXR, PH + MY), P(-MXL, PH + MY)];
       set("ground", "points", pts(corners));
       set("sheen", "points", pts(corners));
-      STRIPES.forEach(([a, b], i) => set(`stripe${i}`, "points", pts([P(a, -M), P(b, -M), P(b, PH + M), P(a, PH + M)])));
+      STRIPES.forEach(([a, b], i) => set(`stripe${i}`, "points", pts([P(a, -MY), P(b, -MY), P(b, PH + MY), P(a, PH + MY)])));
 
       // slab edges facing the camera
       const NORM = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-      const RECT = [[-M, -M], [PW + M, -M], [PW + M, PH + M], [-M, PH + M]];
+      const RECT = [[-MXL, -MY], [PW + MXR, -MY], [PW + MXR, PH + MY], [-MXL, PH + MY]];
       for (let e = 0; e < 4; e++) {
         const a = RECT[e];
         const b = RECT[(e + 1) % 4];

@@ -66,8 +66,8 @@ export function Compare() {
     <div className="mx-auto max-w-3xl px-6 py-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">Compare</h1>
-        <div className="flex gap-2">
-          <div className="flex rounded-lg border border-pitch-700 font-mono text-xs">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <div className="flex rounded-xl border border-pitch-700 text-xs">
             {(["players", "teams"] as const).map((m) => (
               <button
                 key={m}
@@ -84,7 +84,7 @@ export function Compare() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <EntitySelect
           value={idA}
           onChange={setIdA}

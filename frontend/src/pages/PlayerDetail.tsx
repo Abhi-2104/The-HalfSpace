@@ -45,14 +45,14 @@ export function PlayerDetail() {
               <div className="font-mono text-lg font-semibold tabular-nums text-ink-0">
                 {(target as unknown as Record<string, number>)[key].toFixed(2)}
               </div>
-              <div className="mt-0.5 font-mono text-[10px] text-ink-2">{label}</div>
+              <div className="mt-0.5 font-mono text-xs text-ink-2">{label}</div>
             </div>
           ))}
         </div>
         <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="flex items-center font-display text-lg font-bold text-ink-0">Touch heatmap<MetricInfo metric="heatmap" /></h2>
-            <span className="font-mono text-[10px] text-ink-2">attacking →</span>
+            <span className="font-mono text-xs text-ink-2">attacking →</span>
           </div>
           {heatmap ? (
             heatmap.peak ? (

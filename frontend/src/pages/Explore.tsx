@@ -111,7 +111,7 @@ function Hero({ overview, shots }: { overview: Overview | null; shots: ShotXg[] 
         </motion.dl>
       </div>
 
-      <div className="relative">
+      <div className="relative max-md:-mx-6">
         {shots ? (
           <>
             <IsoPitch shots={shots} homeTeamId={ARGENTINA} progress={p} />
@@ -166,7 +166,7 @@ function Story({ shots, freeze }: { shots: ShotXg[] | null; freeze: FreezeFrame 
             <Caption progress={scrollYProgress} from={0.44} to={0.66} title={facts?.big ? `${goalOf(facts.big)} stands out` : "One chance stands out"} body={facts?.big ? `Rated ${(facts.big.xg ?? 0).toFixed(2)} xG, the best chance of the match. The tall column is easy to spot.` : "The tallest column was the best chance."} />
             <Caption progress={scrollYProgress} from={0.66} to={1} last title="Zoom in and see everyone" body={facts?.focus ? `${goalOf(facts.focus)}, rated only ${(facts.focus.xg ?? 0).toFixed(2)} xG. These are the players the cameras could see at that instant.` : "Every shot with 360 data shows where each visible player stood."} />
           </div>
-          <div className="relative order-1 overflow-hidden rounded-[2rem] border border-pitch-800 bg-pitch-900/50 lg:order-2">
+          <div className="relative order-1 overflow-hidden border border-pitch-800 bg-pitch-900/50 max-md:-mx-6 max-md:border-x-0 md:rounded-[2rem] lg:order-2">
             {shots ? <IsoPitch shots={shots} homeTeamId={ARGENTINA} progress={scrollYProgress} freeze={freeze} /> : <PitchSkeleton />}
           </div>
         </div>

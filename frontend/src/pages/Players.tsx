@@ -38,7 +38,7 @@ export function Players() {
       </div>
       <p className="mt-1 text-xs text-ink-2">Minimum 900 minutes played — a reliability floor, not an arbitrary cutoff.</p>
 
-      <div className="mt-4 flex gap-2 font-mono text-xs">
+      <div className="mt-4 flex flex-wrap gap-2 text-xs">
         {SORTS.map(([key, label]) => (
           <button
             key={key}

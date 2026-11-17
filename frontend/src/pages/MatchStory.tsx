@@ -136,7 +136,7 @@ export function MatchStory() {
                   <ShotDot shot={cur.shot} home={cur.shot.team_id === match.home_team_id} />
                 )}
               </Pitch>
-              <p className="mt-2 text-[11px] text-ink-2">
+              <p className="mt-2 text-xs text-ink-2">
                 {frame
                   ? "Blue = attacking team, orange = defenders, ringed = keeper, white = ball."
                   : cur.shot.has_freeze_frame ? "Loading positions…" : "No 360 data for this moment — showing the shot location only."}
@@ -154,7 +154,7 @@ export function MatchStory() {
               >
                 <div className="flex items-baseline gap-2">
                   <span className="font-mono text-sm tabular-nums text-marker-bright">{m.shot.minute}'</span>
-                  {m.isGoal && <span className="rounded-lg bg-marker px-1.5 py-0.5 font-mono text-[10px] font-bold text-ink-0">Goal</span>}
+                  {m.isGoal && <span className="rounded-lg bg-marker px-1.5 py-0.5 font-mono text-xs font-bold text-ink-0">Goal</span>}
                 </div>
                 <p className="mt-2 text-ink-1">
                   <span className="text-ink-0">{m.shot.player_name ?? "A player"}</span> ({m.shot.team_name}){" "}
