@@ -12,7 +12,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
 ![React + Vite](https://img.shields.io/badge/UI-React%20%2B%20Vite-61dafb?logo=react&logoColor=black)
-![Tests](https://img.shields.io/badge/tests-68%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-80%20passing-2ea44f)
 
 ## What you can do with it
 
@@ -63,7 +63,7 @@ Everything is real, open and reproducible. Nothing is mocked or generated.
 |---|---|---|
 | StatsBomb Open Data | 24 competition-seasons: World Cups, Euros, Copa América, AFCON, La Liga, Ligue 1, Bundesliga, MLS, plus women's leagues (WSL, NWSL, Liga F, Frauen-Bundesliga, Serie A Women) | Event data, **2,073 matches / about 7.2M events** |
 | StatsBomb 360 | 12 of those seasons, including World Cup 2022, Euro 2020 and 2024, Women's Euro 2022 and 2025 (425 matches) | About 1.36M freeze-frames of player positions |
-| SkillCorner Open Data | A-League 2024/25 (10 matches) | Broadcast tracking, modeled and extrapolated |
+| SkillCorner Open Data | A-League 2024/25 (20 matches) | Broadcast tracking, modeled and extrapolated |
 | IDSSE | Bundesliga 2022/23, 1. and 2. division (7 matches) | Optical tracking at 25 fps |
 
 Each match carries a coverage record (events, 360, tracking), and the UI shows it as three check marks on every match. The app never implies richer data than a match actually has.
@@ -121,13 +121,13 @@ Python, FastAPI, SQLite, scikit-learn (xG-lite), React, Vite, TypeScript, Tailwi
 
 ## Validation
 
-The test suite (68 tests) runs against the real dataset and has caught real bugs. Examples: the 2022 final comes out 3-3 with the shootout excluded, Suárez tops La Liga 2015/16 goals per 90, Messi's closest player match is Neymar, and xG v2 scores AUC 0.82 on 53,000 shots. Details in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#what-the-tests-check).
+The test suite (80 tests) runs against the real dataset and has caught real bugs. Examples: the 2022 final comes out 3-3 with the shootout excluded, Suárez tops La Liga 2015/16 goals per 90, Messi's closest player match is Neymar, and xG v2 scores AUC 0.82 on 53,000 shots. Details in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#what-the-tests-check).
 
 ## Status and limitations
 
 - The analyst is a stateless chat: the browser sends the conversation back each time, and nothing is stored on the server.
 - Free-tier LLM limits, softened by a 3-model fallback chain.
-- Only 17 matches have tracking data. 360 freeze-frames cover 12 of the 24 competition-seasons (none for the women's leagues).
+- Only 27 matches have tracking data (20 SkillCorner, 7 IDSSE). 360 freeze-frames cover 12 of the 24 competition-seasons (none for the women's leagues).
 - Local only: SQLite, no auth, no deployment, no CI.
 - The interface has been checked in Chromium at desktop and 390px widths. Safari, Firefox and tablet widths haven't been tested.
 - The 3D pitch is drawn per frame in SVG, which is smooth for one match's shots (about 30 to 40 columns). A match with far more shots, or a season-wide view, would need a canvas or WebGL renderer.

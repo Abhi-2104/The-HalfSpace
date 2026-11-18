@@ -43,7 +43,7 @@ Run the tests again: about 28 pass and the rest skip. The skipped ones need La L
 .venv/bin/python3 scripts/ingest_idsse.py                        # 7 tracking matches, about 2.5 GB download
 ```
 
-Now the whole suite runs: `68 passed` (after `scripts/build_models.py`).
+Now the whole suite runs: `80 passed` (after `scripts/build_models.py`).
 
 ### Keeping data current
 
@@ -184,7 +184,7 @@ Bugs found by those tests and fixed at the shared layer: a 185-minute Messi bug 
 - **The agent is not in the UI yet.** The API has `POST /agent/ask`, but the chat panel is not built.
 - **Free LLM limits.** The agent uses Groq's free tier (8K tokens per minute, 200K per day, per model). A fallback chain (`GROQ_MODELS`, default gpt-oss-120b, qwen3.8-27b, gpt-oss-20b) moves to the next model on a 429, since limits are per model. If every model is limited the API returns 429.
 - **Weaker models, weaker answers.** Tool results are capped at 25 rows so they fit free-tier limits, and the agent can only answer from what the tools return. The caveat check matches caveat text exactly, so a model that paraphrases a caveat is flagged as having dropped it.
-- **Small tracking sample.** Only 17 matches have tracking data, and the SkillCorner ones are modeled from broadcast video, not measured. Tracking-based tactics are limited to team shape.
+- **Small tracking sample.** Only 27 matches have tracking data (20 SkillCorner, 7 IDSSE), and the SkillCorner ones are modeled from broadcast video, not measured. Tracking-based tactics are limited to team shape.
 - **Simple models.** xG-lite is a logistic regression on distance, angle and header, with no defender positions. Counterattack detection is a heuristic, labeled medium confidence, not a trained classifier. Player similarity is role-aware but position-bucket based.
 - **Uneven coverage.** 360 freeze-frames exist for three tournaments only. La Liga and Copa América have events but no 360. Mostly men's data, apart from the Women's Euro.
 - **Heavy local data.** A full setup is about 4.7 GB of database (about 1.3 GB after `scripts/pack_frames.py`) and 11 GB of raw cache, and nothing here is hosted.
