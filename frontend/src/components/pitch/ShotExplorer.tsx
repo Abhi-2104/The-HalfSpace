@@ -56,15 +56,15 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
 
   return (
     <>
-    <ExpandedView open={expanded} onClose={() => setExpanded(false)} shots={shots} homeTeamId={homeTeamId} homeTeam={homeTeam} awayTeam={awayTeam}
+    <ExpandedView initialView={view} open={expanded} onClose={() => setExpanded(false)} shots={shots} homeTeamId={homeTeamId} homeTeam={homeTeam} awayTeam={awayTeam}
       progress={isoProgress} selected={selected} frame={frame} loadingFrame={loadingFrame} onPick={pick} />
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-start">
       <div className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="font-display text-lg font-bold text-ink-0">Shot map</h3>
           <div className="flex items-center gap-3">
-            {view === "3d" && (
-              <button type="button" onClick={() => setExpanded(true)} aria-label="Expand the 3D view" className="flex items-center gap-1.5 rounded-full border border-pitch-800 px-3 py-1 text-xs font-medium text-ink-1 transition-colors hover:border-marker hover:text-ink-0">
+            {(
+              <button type="button" onClick={() => setExpanded(true)} aria-label="Expand the shot map" className="flex items-center gap-1.5 rounded-full border border-pitch-800 px-3 py-1 text-xs font-medium text-ink-1 transition-colors hover:border-marker hover:text-ink-0">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
                 Expand
               </button>

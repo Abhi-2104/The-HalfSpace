@@ -161,7 +161,8 @@ def test_ask_history_reaches_llm_in_order(ask):
     hist = [{"role": "user", "content": "Tell me about Messi"}, {"role": "assistant", "content": "He is a forward."}]
     r, llm = ask({"question": "and his key passes?", "history": hist})
     assert r.status_code == 200
-    assert [m["role"] for m in llm.seen] == ["system", "user", "assistant", "user"]
+    assert [m["role"] for m in llm.seen if m["role"] != "system"] == ["user", "assistant", "user"]   # the intent hint is an extra system message
+    assert llm.seen[0]["role"] == "system"
     assert llm.seen[-1]["content"] == "and his key passes?"
 
 

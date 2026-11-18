@@ -58,7 +58,7 @@ def get_match(conn: sqlite3.Connection, match_id: int) -> dict | None:
            JOIN team ht ON ht.id = m.home_team_id
            JOIN team at ON at.id = m.away_team_id
            JOIN competition c ON c.id = m.competition_id
-           JOIN season s ON s.id = m.season_id
+           JOIN season s ON s.id = m.season_id AND s.competition_id = m.competition_id
            WHERE m.id = ?""",
         (match_id,),
     ).fetchone()

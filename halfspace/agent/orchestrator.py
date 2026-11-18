@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 import json
 
 from halfspace.agent.llm import LLMClient, reset_waits
+from halfspace import db
+from halfspace.agent import intent
 from halfspace.agent.suggest import suggest_followups
 from halfspace.agent.tools import TOOLS, TOOLS_BY_NAME
 
@@ -99,10 +101,21 @@ class Agent:
         self.llm = llm
         self.tools = tools if tools is not None else TOOLS
 
+    @staticmethod
+    def _intent_hint(question: str, history: list[dict]) -> list[dict]:
+        """What the user wants, which competition/players/teams they mean and which tools fit, resolved against the data.
+        Pronouns ('his passing') are resolved from the latest user message. Never blocks the answer: any failure means no hint."""
+        try:
+            last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+            return [{"role": "system", "content": intent.analyze(question, db.connect(), last_user).hint()}]
+        except Exception:
+            return []
+
     def run(self, question: str, history: list[dict] | None = None) -> AgentAnswer:
         """history: prior {role: user|assistant, content} text turns only (no tool
         traffic). Caveat tracking is per-run: it covers tool results from THIS question."""
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *trim_history(history),
+        hist = trim_history(history)
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *self._intent_hint(question, hist), *hist,
                     {"role": "user", "content": question}]
         provenance: list[ToolExecution] = []
         caveats: list[str] = []

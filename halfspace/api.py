@@ -62,10 +62,11 @@ app = FastAPI(
 app.include_router(models_router)
 app.include_router(admin_router)
 
-# dev-only: frontend runs on Vite's default port, backend on uvicorn's.
+# dev-only: frontend runs on Vite on 5817, backend on uvicorn on 8742.
 # Both are localhost, no real cross-origin trust boundary to defend at this stage.
 app.add_middleware(
-    CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    CORSMiddleware, allow_origins=["http://localhost:5817", "http://127.0.0.1:5817",
+                                   *[o.strip() for o in os.environ.get("HALFSPACE_ALLOWED_ORIGINS", "").split(",") if o.strip()]],
     allow_methods=["GET", "POST"], allow_headers=["*"],
 )
 

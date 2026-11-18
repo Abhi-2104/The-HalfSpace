@@ -107,11 +107,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python3 scripts/ingest_competition.py 43 106 --360
 .venv/bin/python3 scripts/train_shot_model.py
 
-.venv/bin/uvicorn halfspace.api:app --reload      # API on :8000, docs at /docs
-cd frontend && cp .env.example .env && npm install && npm run dev   # UI on :5173
+.venv/bin/uvicorn halfspace.api:app --reload --port 8742      # API on :8742, docs at /docs
+cd frontend && cp .env.example .env && npm install && npm run dev   # UI on :5817
 ```
 
-Open <http://localhost:5173> and try **Matches → World Cup 2022 → the final**, click a ringed shot, then **Guided match story**.
+Open <http://localhost:5817> and try **Matches → World Cup 2022 → the final**, click a ringed shot, then **Guided match story**.
 
 The full setup guide (all competitions, tracking data, the agent, the test suite) is in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 

@@ -79,3 +79,26 @@ def test_status_reports_data_and_running_job(client):
     s = client.get("/admin/status", headers=H).json()
     assert {"data", "models", "files_gb", "disk_free_gb", "jobs_available", "build_steps"} <= set(s)
     assert s["running_job"] is None and "quick" in s["jobs_available"]
+
+
+# --- production entry point: API under /api, frontend at / ---
+
+def test_server_serves_the_frontend_and_keeps_the_api_under_api(tmp_path):
+    from halfspace import server
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<html>app</html>")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    c = TestClient(server.build(tmp_path))
+    assert c.get("/api/health").json() == {"status": "ok"}
+    assert c.get("/matches").text == "<html>app</html>"            # a frontend page, not the /matches API route
+    assert c.get("/players/123/anything").text == "<html>app</html>"  # client-side routes fall back to index.html
+    assert c.get("/assets/app.js").text == "console.log(1)"
+    assert c.get("/api/no-such-route").status_code == 404           # API misses stay real 404s
+    assert c.get("/api/matches").status_code == 422                 # the API route itself still works (needs its query parameters)
+    assert c.get("/docs").text == "<html>app</html>"                # docs are not exposed on the root
+
+
+def test_server_without_a_built_frontend_still_serves_the_api(tmp_path):
+    from halfspace import server
+    c = TestClient(server.build(tmp_path / "missing"))
+    assert c.get("/api/health").status_code == 200 and c.get("/").status_code == 404

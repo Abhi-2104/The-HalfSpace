@@ -1,8 +1,8 @@
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8742";
 const BASE = API_BASE;
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
-  const url = new URL(BASE + path);
+  const url = new URL(BASE + path, window.location.origin); // a relative base such as "/api" resolves against the page
   if (params) {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
   }

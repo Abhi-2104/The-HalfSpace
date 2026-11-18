@@ -119,3 +119,27 @@ def test_impect_kpis_are_stored_per_player_and_ingest_needs_terms_acceptance(tmp
     assert impect.store_player_kpis(conn, doc) == 2          # the KPI with no value is skipped
     assert impect.store_player_kpis(conn, doc) == 2          # re-ingest replaces, does not duplicate
     assert conn.execute("SELECT COUNT(*) FROM impect_player_kpi").fetchone()[0] == 2
+
+
+def test_competitions_that_share_a_season_id_both_exist(tmp_path):
+    """Regression: season was keyed on season_id alone, so Euro 2024 and Copa America 2024 (both 282) collapsed into one row
+    and 10 of 24 competition-seasons disappeared from every list. Old databases are rebuilt on first connect."""
+    import sqlite3
+    from halfspace import db
+    path = tmp_path / "old.db"
+    raw = sqlite3.connect(path)
+    raw.executescript("""
+        CREATE TABLE competition (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE season (id INTEGER PRIMARY KEY, competition_id INTEGER NOT NULL, name TEXT NOT NULL);
+        CREATE TABLE match (id INTEGER PRIMARY KEY, competition_id INTEGER NOT NULL, season_id INTEGER NOT NULL, match_date TEXT,
+                            home_team_id INTEGER, away_team_id INTEGER, home_score INTEGER, away_score INTEGER, data_source_id INTEGER);
+        INSERT INTO competition VALUES (55, 'UEFA Euro'), (223, 'Copa America');
+        INSERT INTO season VALUES (282, 55, '2024');
+        INSERT INTO match (id, competition_id, season_id) VALUES (1, 55, 282), (2, 223, 282);""")
+    raw.commit()
+    raw.close()
+    conn = db.connect(path)
+    rows = {(r["competition_id"], r["id"]) for r in conn.execute("SELECT competition_id, id FROM season")}
+    assert rows == {(55, 282), (223, 282)}
+    assert {r["competition_name"] for r in db.connect(path).execute(
+        "SELECT c.name AS competition_name FROM competition c JOIN season s ON s.competition_id = c.id")} == {"UEFA Euro", "Copa America"}

@@ -39,7 +39,7 @@ def match_report(conn, match_id: int) -> dict | None:
     row = conn.execute("""SELECT m.home_score, m.away_score, m.home_team_id, m.away_team_id, ht.name AS home, at.name AS away,
                                  c.name AS comp, s.name AS season
                           FROM match m JOIN team ht ON ht.id=m.home_team_id JOIN team at ON at.id=m.away_team_id
-                          JOIN competition c ON c.id=m.competition_id JOIN season s ON s.id=m.season_id WHERE m.id=?""", (match_id,)).fetchone()
+                          JOIN competition c ON c.id=m.competition_id JOIN season s ON s.id=m.season_id AND s.competition_id=m.competition_id WHERE m.id=?""", (match_id,)).fetchone()
     story = momentum.match_story(conn, match_id)
     if row is None or story is None:
         return None

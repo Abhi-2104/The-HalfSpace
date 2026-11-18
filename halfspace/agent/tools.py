@@ -55,8 +55,9 @@ def list_competitions() -> dict:
 
 
 @_wrap
-def list_matches(competition_id: int, season_id: int) -> dict:
-    return {"matches": lookups.list_matches(db.connect(), competition_id, season_id)}
+def list_matches(competition_id: int, season_id: int, latest: bool = False) -> dict:
+    rows = lookups.list_matches(db.connect(), competition_id, season_id)
+    return {"matches": rows[-LIST_CAP:] if latest else rows, "order": "oldest first" + (", the last shown are the most recent (the final is the last)" if latest else "")}
 
 
 @_wrap
@@ -225,6 +226,18 @@ def search_football(query: str, kind: str = None) -> dict:
 
 
 @_wrap
+def get_standings(competition_code: str) -> dict:
+    from halfspace.ingest import fixtures
+    return fixtures.read_standings(competition_code) or {"error": f"No current-season table is available for '{competition_code}'."}
+
+
+@_wrap
+def get_fixtures(competition_code: str, status: str = None, team: str = None) -> dict:
+    from halfspace.ingest import fixtures
+    return fixtures.read_fixtures(competition_code, status, team, limit=12) or {"error": f"No current-season fixtures are available for '{competition_code}'."}
+
+
+@_wrap
 def explain_shot(event_id: str) -> dict:
     return xg.explain_event(event_id) or {"error": f"no shot {event_id}"}
 
@@ -236,8 +249,8 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {"team": {"type": "string"}, "opponent": {"type": "string"},
                                                 "competition_id": {"type": "integer"}, "season_id": {"type": "integer"}}, "required": ["team"]},
              find_matches),
-    ToolSpec("list_matches", "List the first 25 matches of a competition/season (use find_matches to look for a specific game).",
-             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}}, "required": ["competition_id", "season_id"]},
+    ToolSpec("list_matches", "List 25 matches of a competition/season, oldest first; latest=true gives the LAST 25 (the final is the last match). Use find_matches for a specific game.",
+             {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}, "latest": {"type": "boolean"}}, "required": ["competition_id", "season_id"]},
              list_matches),
     ToolSpec("get_match", "Basic info for one match: teams, score, date.",
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match),
@@ -309,6 +322,13 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("search_football", "Find players, teams, matches or tactical concepts by description (kind: player|team|match|concept), "
              "e.g. 'high pressing teams', 'creative midfielders', 'upsets'. Returns ids to look up with other tools.",
              {"type": "object", "properties": {"query": {"type": "string"}, "kind": {"type": "string"}}, "required": ["query"]}, search_football),
+    ToolSpec("get_standings", "Current-season league table for a competition code: PL (Premier League), PD (La Liga), BL1 (Bundesliga), "
+             "SA (Serie A), FL1 (Ligue 1), PPL (Primeira Liga), DED (Eredivisie). Not for past seasons.",
+             {"type": "object", "properties": {"competition_code": {"type": "string"}}, "required": ["competition_code"]}, get_standings),
+    ToolSpec("get_fixtures", "Current-season fixtures and results for a competition code (PL, PD, BL1, SA, FL1, PPL, DED), optionally "
+             "status SCHEDULED or FINISHED and a team name.",
+             {"type": "object", "properties": {"competition_code": {"type": "string"}, "status": {"type": "string"}, "team": {"type": "string"}},
+              "required": ["competition_code"]}, get_fixtures),
     ToolSpec("explain_shot", "Why a shot has its xG: top factors (approximate attribution).",
              {"type": "object", "properties": {"event_id": {"type": "string"}}, "required": ["event_id"]}, explain_shot),
 ]

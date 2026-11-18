@@ -1,0 +1,19 @@
+# Caddy gets and renews the HTTPS certificate by itself. DOMAIN comes from /etc/default/caddy-domain (set by setup_server.sh).
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# Optional: only let your own address reach the admin API. Uncomment and put your public IP in.
+	# @admin path /api/admin/*
+	# @notme not remote_ip 203.0.113.7
+	# respond @admin @notme "Not found" 404
+
+	reverse_proxy 127.0.0.1:8742
+}

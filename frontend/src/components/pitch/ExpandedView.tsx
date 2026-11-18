@@ -20,7 +20,8 @@ type Filter = "all" | "goals" | "home" | "away";
  * The 3D view full-screen: a big interactive pitch on the left, and on the right the match
  * totals, the freeze-frame of the chosen shot and every shot as a filterable list.
  */
-export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayTeam, progress, selected, frame, loadingFrame, onPick }: {
+export function ExpandedView({ initialView = "3d", open, onClose, shots, homeTeamId, homeTeam, awayTeam, progress, selected, frame, loadingFrame, onPick }: {
+  initialView?: "3d" | "map";
   open: boolean;
   onClose: () => void;
   shots: ShotXg[] | null;
@@ -34,7 +35,8 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
   onPick: (s: ShotXg) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const [view, setView] = useState<"3d" | "map">("3d");
+  const [view, setView] = useState<"3d" | "map">(initialView);
+  useEffect(() => { if (open) setView(initialView); }, [open, initialView]);
   const cam = useRef<{ preset: (n: string) => void } | null>(null);
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-          role="dialog" aria-modal="true" aria-label="Shot map in 3D, expanded"
+          role="dialog" aria-modal="true" aria-label="Shot map, expanded"
           data-lenis-prevent
         >
           <div className="absolute inset-0 bg-pitch-950/70 backdrop-blur-sm" onClick={onClose} />

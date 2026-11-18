@@ -5,3 +5,5 @@ httpx
 numpy
 scikit-learn
 lxml
+pandas
+joblib

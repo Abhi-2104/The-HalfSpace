@@ -140,3 +140,47 @@ def refresh_football_data(conn=None, key: str | None = None, fetch=_get, pause: 
         _store(conn, "football-data.org", code, fx, rows)
         out[code] = {"fixtures": len(fx), "table_rows": len(rows)}
     return out
+
+
+# --- reads, shared by the API and the agent tools ---
+
+def best_source(c, code: str):
+    """football-data.org when we have it for this competition (richer, official), else openfootball."""
+    row = c.execute("SELECT source FROM fixture WHERE competition_code=? GROUP BY source "
+                    "ORDER BY (source = 'football-data.org') DESC, MAX(updated_at) DESC LIMIT 1", (code,)).fetchone()
+    return row["source"] if row else None
+
+
+def read_fixtures(code: str, status=None, team=None, date_from=None, date_to=None, limit=50) -> dict | None:
+    c = _conn()
+    code = code.upper()
+    src = best_source(c, code)
+    if src is None:
+        return None
+    q, args = "SELECT * FROM fixture WHERE competition_code=? AND source=?", [code, src]
+    if status:
+        q += " AND status=?"
+        args.append(status.upper())
+    if team:
+        q += " AND (home LIKE ? OR away LIKE ?)"
+        args += [f"%{team}%", f"%{team}%"]
+    if date_from:
+        q += " AND kickoff >= ?"
+        args.append(date_from)
+    if date_to:
+        q += " AND kickoff <= ?"
+        args.append(date_to + "T99")
+    rows = c.execute(q + " ORDER BY kickoff LIMIT ?", (*args, min(limit, 500))).fetchall()
+    return {"competition": code, "source": src, "fixtures": [dict(r) for r in rows],
+            "note": "Scores are delayed on the free football-data.org tier. openfootball is community-maintained and may lag."}
+
+
+def read_standings(code: str) -> dict | None:
+    c = _conn()
+    code = code.upper()
+    src = best_source(c, code)
+    rows = c.execute("SELECT * FROM standing WHERE competition_code=? AND source=? ORDER BY position", (code, src)).fetchall() if src else []
+    if not rows:
+        return None
+    return {"competition": code, "source": src, "season": rows[0]["season"], "updated_at": rows[0]["updated_at"], "table": [dict(r) for r in rows],
+            "note": "From openfootball results (computed) or football-data.org (official), whichever is available."}

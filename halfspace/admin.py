@@ -97,7 +97,11 @@ def _load() -> list[dict]:
 
 
 def _save(jobs: list[dict]) -> None:
-    _jobs_file().write_text(json.dumps(jobs[-50:], indent=1))
+    """Atomic write: a poll reading the file while a job finishes must see the old or the new content, never half of it."""
+    f = _jobs_file()
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(jobs[-50:], indent=1))
+    os.replace(tmp, f)
 
 
 def _alive(pid: int) -> bool:
@@ -200,7 +204,8 @@ def start_job(req: JobRequest):
 
 
 def _find(job_id: str) -> dict:
-    job = next((j for j in _load() if j["id"] == job_id), None)
+    with _state:
+        job = next((j for j in _load() if j["id"] == job_id), None)
     if job is None:
         raise HTTPException(404, "no such job")
     return job

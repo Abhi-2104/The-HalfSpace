@@ -30,9 +30,10 @@ CREATE TABLE IF NOT EXISTS competition (
 );
 
 CREATE TABLE IF NOT EXISTS season (
-    id INTEGER PRIMARY KEY,          -- statsbomb season_id
+    id INTEGER NOT NULL,             -- statsbomb season_id: NOT unique on its own (Euro 2024 and Copa America 2024 are both 282)
     competition_id INTEGER NOT NULL REFERENCES competition(id),
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    PRIMARY KEY (competition_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS team (
@@ -49,7 +50,7 @@ CREATE TABLE IF NOT EXISTS player (
 CREATE TABLE IF NOT EXISTS match (
     id INTEGER PRIMARY KEY,          -- statsbomb match_id
     competition_id INTEGER NOT NULL REFERENCES competition(id),
-    season_id INTEGER NOT NULL REFERENCES season(id),
+    season_id INTEGER NOT NULL,      -- with competition_id identifies the season
     match_date TEXT,
     home_team_id INTEGER REFERENCES team(id),   -- nullable: unknown when ingested without match-list metadata (e.g. tests)
     away_team_id INTEGER REFERENCES team(id),
@@ -130,6 +131,29 @@ CREATE TABLE IF NOT EXISTS tracking_team_match (
 """
 
 
+def _migrate_season_key(conn: sqlite3.Connection) -> None:
+    """Old databases keyed `season` on StatsBomb's season_id alone, so competitions sharing an id (Euro 2024 / Copa America 2024)
+    collapsed into one row and 10 of 24 competition-seasons vanished from every list. Rebuild it keyed on (competition_id, id),
+    one row per competition-season that has matches."""
+    pk = {r[1] for r in conn.execute("PRAGMA table_info(season)") if r[5]}
+    if pk == {"competition_id", "id"}:
+        return
+    import json
+    names = {}
+    f = Path(__file__).resolve().parent.parent / "data" / "raw" / "competitions.json"
+    if f.exists():
+        names = {(c["competition_id"], c["season_id"]): c["season_name"] for c in json.loads(f.read_text())}
+    old = {(r[0], r[1]): r[2] for r in conn.execute("SELECT competition_id, id, name FROM season")}
+    pairs = {tuple(r) for r in conn.execute("SELECT DISTINCT competition_id, season_id FROM match")} | set(old)
+    conn.execute("CREATE TABLE season_new (id INTEGER NOT NULL, competition_id INTEGER NOT NULL REFERENCES competition(id), "
+                 "name TEXT NOT NULL, PRIMARY KEY (competition_id, id))")
+    conn.executemany("INSERT INTO season_new VALUES (?, ?, ?)",
+                     [(sid, cid, names.get((cid, sid)) or old.get((cid, sid)) or str(sid)) for cid, sid in sorted(pairs)])
+    conn.execute("DROP TABLE season")
+    conn.execute("ALTER TABLE season_new RENAME TO season")
+    conn.commit()
+
+
 _ready: set[str] = set()  # databases whose schema/WAL setup already ran in this process
 
 
@@ -149,6 +173,7 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
         except sqlite3.OperationalError:
             pass  # another process holds it right now; the next process to connect switches it
         conn.executescript(SCHEMA)
+        _migrate_season_key(conn)
         if "display_name" not in {r[1] for r in conn.execute("PRAGMA table_info(player)")}:
             conn.execute("ALTER TABLE player ADD COLUMN display_name TEXT")  # databases created before display names existed
             conn.commit()

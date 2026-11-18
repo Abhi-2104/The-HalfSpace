@@ -258,7 +258,7 @@ def ingest_competition(conn: sqlite3.Connection, competition_id: int, season_id:
     conn.execute("UPDATE competition SET name = ? WHERE id = ?", (comp_name, competition_id))
     conn.execute("INSERT OR IGNORE INTO season (id, competition_id, name) VALUES (?, ?, ?)",
                  (season_id, competition_id, season_name))
-    conn.execute("UPDATE season SET name = ? WHERE id = ?", (season_name, season_id))
+    conn.execute("UPDATE season SET name = ? WHERE id = ? AND competition_id = ?", (season_name, season_id, competition_id))
     conn.commit()
     log(f"{comp_name} {season_name}: {len(match_list)} matches{' (with 360)' if fetch_360 else ''}")
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=The Halfspace (API and frontend)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/halfspace
+EnvironmentFile=/opt/halfspace/.env
+# one worker: SQLite plus in-memory caches, and the machine has no memory to spare for copies
+ExecStart=/opt/halfspace/.venv/bin/uvicorn halfspace.server:root --host 127.0.0.1 --port 8742 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/halfspace
+
+[Install]
+WantedBy=multi-user.target

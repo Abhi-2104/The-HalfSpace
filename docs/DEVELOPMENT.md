@@ -61,21 +61,21 @@ It re-downloads the StatsBomb competition and match lists, then ingests only mat
 Backend:
 
 ```bash
-.venv/bin/uvicorn halfspace.api:app --reload
+.venv/bin/uvicorn halfspace.api:app --reload --port 8742
 ```
 
-It pre-warms caches on startup (a few seconds). Check it with `curl localhost:8000/health`, and browse the interactive API docs at <http://localhost:8000/docs>.
+It pre-warms caches on startup (a few seconds). Check it with `curl localhost:8742/health`, and browse the interactive API docs at <http://localhost:8742/docs>.
 
 Frontend, in a second terminal:
 
 ```bash
 cd frontend
-cp .env.example .env        # points the UI at http://localhost:8000
+cp .env.example .env        # points the UI at http://localhost:8742
 npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. Good places to start: **Matches → World Cup 2022 → the final**, then click a ringed shot, then **Walk me through this match**.
+Open <http://localhost:5817>. Good places to start: **Matches → World Cup 2022 → the final**, then click a ringed shot, then **Walk me through this match**.
 
 ### 4. Try the agent
 
@@ -89,7 +89,7 @@ cp .env.example .env        # then paste your key after GROQ_API_KEY=
 Or over HTTP, with the server running:
 
 ```bash
-curl -s localhost:8000/agent/ask -H 'content-type: application/json' \
+curl -s localhost:8742/agent/ask -H 'content-type: application/json' \
   -d '{"question": "Who topped goals per 90 in La Liga 2015/16?"}'
 ```
 

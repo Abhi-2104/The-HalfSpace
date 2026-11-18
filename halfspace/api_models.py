@@ -137,13 +137,6 @@ def _fx_conn():
     return fixtures._conn()
 
 
-def _best_source(c, code: str):
-    """football-data.org when we have it for this competition (richer, official), else openfootball."""
-    row = c.execute("SELECT source FROM fixture WHERE competition_code=? GROUP BY source "
-                    "ORDER BY (source = 'football-data.org') DESC, MAX(updated_at) DESC LIMIT 1", (code,)).fetchone()
-    return row["source"] if row else None
-
-
 @router.get("/fixtures/competitions")
 def fixture_competitions():
     c = _fx_conn()
@@ -156,38 +149,20 @@ def fixture_competitions():
 def fixtures(competition: str, status: str | None = None, team: str | None = None, date_from: str | None = None,
              date_to: str | None = None, limit: int = 50):
     """Fixtures and results for one competition code (PL, PD, BL1, SA, FL1, PPL, DED, ...). status: SCHEDULED | FINISHED | LIVE."""
-    c = _fx_conn()
-    src = _best_source(c, competition.upper())
-    if src is None:
+    from halfspace.ingest import fixtures as fx
+    out = fx.read_fixtures(competition, status, team, date_from, date_to, limit)
+    if out is None:
         raise HTTPException(404, f"no fixtures for '{competition}' (run the refresh_fixtures job)")
-    q, args = "SELECT * FROM fixture WHERE competition_code=? AND source=?", [competition.upper(), src]
-    if status:
-        q += " AND status=?"
-        args.append(status.upper())
-    if team:
-        q += " AND (home LIKE ? OR away LIKE ?)"
-        args += [f"%{team}%", f"%{team}%"]
-    if date_from:
-        q += " AND kickoff >= ?"
-        args.append(date_from)
-    if date_to:
-        q += " AND kickoff <= ?"
-        args.append(date_to + "T99")
-    rows = c.execute(q + " ORDER BY kickoff LIMIT ?", (*args, min(limit, 500))).fetchall()
-    return {"competition": competition.upper(), "source": src, "fixtures": [dict(r) for r in rows],
-            "note": "Scores are delayed on the free football-data.org tier. openfootball is community-maintained and may lag."}
+    return out
 
 
 @router.get("/standings/{competition}")
 def standings(competition: str):
-    c = _fx_conn()
-    src = _best_source(c, competition.upper())
-    rows = c.execute("SELECT * FROM standing WHERE competition_code=? AND source=? ORDER BY position", (competition.upper(), src)).fetchall() if src else []
-    if not rows:
+    from halfspace.ingest import fixtures as fx
+    out = fx.read_standings(competition)
+    if out is None:
         raise HTTPException(404, f"no standings for '{competition}'")
-    return {"competition": competition.upper(), "source": src, "season": rows[0]["season"], "updated_at": rows[0]["updated_at"],
-            "table": [dict(r) for r in rows],
-            "note": "From openfootball results (computed) or football-data.org (official), whichever is available."}
+    return out
 
 
 # --- tracking-derived measures ---
