@@ -41,12 +41,13 @@ SIMILARITY_FEATURES = [
 # events only change when ingesting, so caching is a real fix, not a workaround. The key
 # includes the season's match count, so newly ingested matches get a fresh entry
 # without restarting the API.
-_profile_cache: dict[tuple[int, int, int], list[dict]] = {}  # key includes match count: new matches => fresh entry
+_profile_cache: dict[tuple[int, int, int, int], list[dict]] = {}  # key includes match count: new matches => fresh entry
 
 
-def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int) -> list[dict]:
+def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season_id: int, floor: int | None = None) -> list[dict]:
     """One row per player with >=MIN_MINUTES in this competition/season, per-90 features."""
-    cache_key = (competition_id, season_id, db.season_match_count(conn, competition_id, season_id))
+    floor = floor or min_minutes(conn, competition_id, season_id)
+    cache_key = (competition_id, season_id, db.season_match_count(conn, competition_id, season_id), floor)
     if cache_key in _profile_cache:
         return _profile_cache[cache_key]
 
@@ -65,7 +66,7 @@ def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season
            WHERE m.competition_id = ? AND m.season_id = ?
            GROUP BY player_id
            HAVING SUM(minutes) >= ?""",
-        (competition_id, season_id, competition_id, season_id, competition_id, season_id, min_minutes(conn, competition_id, season_id)),
+        (competition_id, season_id, competition_id, season_id, competition_id, season_id, floor),
     ).fetchall()
 
     profiles = {}
@@ -127,17 +128,17 @@ def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season
     return out
 
 
-def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: int, player_id: int, top_n: int = 8) -> dict:
+def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: int, player_id: int, top_n: int = 8, floor: int | None = None) -> dict:
     """
     Role-aware similarity: cosine distance over standardized per-90 features,
     restricted to the target's attacking-position peer group when the target
     plays an attacking position (project spec: explain similarity, don't just
     output a percentage - the feature breakdown IS the explanation here).
     """
-    profiles = season_player_profiles(conn, competition_id, season_id)
+    floor = floor or min_minutes(conn, competition_id, season_id)
+    profiles = season_player_profiles(conn, competition_id, season_id, floor)
     if not profiles:
         return {"error": "no players with sufficient minutes in this competition/season"}
-    floor = min_minutes(conn, competition_id, season_id)
 
     target = next((p for p in profiles if p["player_id"] == player_id), None)
     if target is None:

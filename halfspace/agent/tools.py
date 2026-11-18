@@ -95,21 +95,34 @@ def get_season_players(competition_id: int, season_id: int, sort_by: str = "goal
     return {"sorted_by": sort_by, "players": sorted(profiles, key=lambda p: -p[sort_by]), "min_minutes": player_features.min_minutes(conn, competition_id, season_id)}
 
 
-FALLBACK_CAVEAT = ("There was not enough playing time in this competition for a full like-for-like comparison, so these are the players "
-                   "who play in the most similar way across all competitions in the data. Treat them as likely matches, not certain ones.")
+SMALL_SAMPLE_FLOOR = 90  # one full match: the lowest bar for a like-for-like comparison, flagged as low confidence
+
+
+def _scope_name(conn, competition_id: int, season_id: int) -> str:
+    r = conn.execute("SELECT c.name c, s.name s FROM competition c JOIN season s ON s.competition_id = c.id WHERE c.id = ? AND s.id = ?",
+                     (competition_id, season_id)).fetchone()
+    return f"{r['c']} {r['s']}" if r else "this competition"
 
 
 @_wrap
 def get_similar_players(competition_id: int, season_id: int, player_id: int, top_n: int = 8) -> dict:
+    """Players WITHIN the named competition-season. Never silently widens the scope the user asked for."""
     conn = db.connect()
+    scope = _scope_name(conn, competition_id, season_id)
     r = player_features.similar_players(conn, competition_id, season_id, player_id, top_n=top_n)
     if "error" not in r:
         return r
-    fb = roles.similar_players(conn, player_id, competition_id, season_id, min(top_n, 6), any_season=True)
-    if "error" in fb:
-        return {"error": "There is not enough playing time for this player in the data to say who plays most like them."}
-    fb["caveat"] = FALLBACK_CAVEAT + (f" The player's style is taken from {fb['based_on']}." if fb.get("based_on") else "")
-    return fb
+    low = player_features.similar_players(conn, competition_id, season_id, player_id, top_n=top_n, floor=SMALL_SAMPLE_FLOOR)
+    if "error" not in low:  # same scope, thinner evidence: say so
+        low["caveat"] = (f"This player had limited playing time in {scope}, so the comparison within it is low-confidence: "
+                         "it rests on a small number of matches.")
+        return low
+    out = {"error": f"There is not enough playing time for this player in {scope} to compare them with others in it."}
+    hint = roles.similar_players(conn, player_id, competition_id, season_id, 5, any_season=True)
+    if "error" not in hint:  # clearly labelled as outside what was asked
+        out["outside_scope_hint"] = {"note": f"Not from {scope}: players in other competitions who play in a similar way.",
+                                     "players": hint["plays_like"], "style_taken_from": hint.get("based_on")}
+    return out
 
 
 @_wrap
@@ -182,16 +195,14 @@ def get_goalkeepers(competition_id: int, season_id: int) -> dict:
 
 @_wrap
 def get_plays_like(competition_id: int, season_id: int, player_id: int) -> dict:
+    """Style matches across ALL competitions (use when the question names no competition)."""
     conn = db.connect()
     r = roles.similar_players(conn, player_id, competition_id, season_id, 6, any_season=True)
-    if "error" not in r:
-        if r.get("based_on"):
-            r["caveat"] = f"There was not enough playing time in that competition, so the player's style is taken from {r['based_on']}."
-        return r
-    r2 = player_features.similar_players(conn, competition_id, season_id, player_id, top_n=6)
-    if "error" in r2:
+    if "error" in r:
         return {"error": "There is not enough playing time for this player in the data to say who plays most like them."}
-    return r2
+    if r.get("based_on"):
+        r["caveat"] = f"There was not enough playing time in that competition, so the player's style is taken from {r['based_on']}."
+    return r
 
 
 @_wrap
@@ -240,7 +251,7 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
                                                 "sort_by": {"type": "string"}}, "required": ["competition_id", "season_id"]},
              get_season_players),
-    ToolSpec("get_similar_players", "Role-aware most-similar players to a given player.",
+    ToolSpec("get_similar_players", "Most similar players to a given player WITHIN the named competition and season. Use this whenever the question names a competition or tournament.",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
                                                 "player_id": {"type": "integer"}, "top_n": {"type": "integer"}},
               "required": ["competition_id", "season_id", "player_id"]},
@@ -286,7 +297,7 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("get_goalkeepers", "Goalkeepers ranked by goals prevented (post-shot xG minus goals conceded), noisy under ~150 shots.",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"}},
               "required": ["competition_id", "season_id"]}, get_goalkeepers),
-    ToolSpec("get_plays_like", "A player's data-driven role and the players who played most like them, across all competitions.",
+    ToolSpec("get_plays_like", "A player's data-driven role and the players who played most like them across ALL competitions. Use this only when the question does not name a competition or tournament.",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
                                                 "player_id": {"type": "integer"}}, "required": ["competition_id", "season_id", "player_id"]},
              get_plays_like),

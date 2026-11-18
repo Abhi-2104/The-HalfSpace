@@ -325,6 +325,7 @@ def test_agent_answer_carries_suggestions_through_the_api(monkeypatch):
 def test_prompt_forbids_concluding_a_player_did_not_play_from_a_tool_error_old():
     from halfspace.agent.orchestrator import SYSTEM_PROMPT
     assert "never conclude that a player did not play" in SYSTEM_PROMPT and "Never quote error messages" in SYSTEM_PROMPT
+    assert "Stay inside the competition" in SYSTEM_PROMPT and "outside what they asked" in SYSTEM_PROMPT
 
 
 def test_fallback_skips_a_model_that_wrote_a_broken_tool_call():
@@ -380,12 +381,31 @@ def test_compare_caveat_does_not_name_internal_functions():
 
 
 @pytest.mark.usefixtures("needs_laliga")
-def test_similar_players_falls_back_to_closest_style_with_a_plain_caveat(ready_db):
-    from halfspace.agent.tools import get_similar_players, get_plays_like
-    # a player with too few minutes in this competition: Messi at Euro 2024 is not in the data; use an unknown id for the pure-error path
-    r = get_similar_players(competition_id=43, season_id=106, player_id=5503)       # Messi, World Cup 2022
-    assert "error" not in r and r["most_similar"]                                    # 732 minutes: full comparison, no fallback needed
-    unknown = get_similar_players(competition_id=43, season_id=106, player_id=999999)
-    assert "error" in unknown and "playing time" in unknown["error"] and "999999" not in unknown["error"]
-    low = get_plays_like(competition_id=43, season_id=106, player_id=999999)
-    assert "error" in low and "playing time" in low["error"]
+def test_similar_players_stays_inside_the_competition_the_user_named(ready_db):
+    """Scope rule: a question about the World Cup is answered with World Cup players. Only when nothing can be compared inside
+    it does the tool say why, and then any players from elsewhere are labelled as outside what was asked."""
+    from halfspace import db
+    from halfspace.agent.tools import get_plays_like, get_similar_players
+    r = get_similar_players(competition_id=43, season_id=106, player_id=5503)       # Messi, World Cup 2022 (732 minutes)
+    if "error" in r:
+        pytest.skip("World Cup 2022 not ingested")
+    teams_in_scope = {t["name"] for t in db.connect().execute(
+        "SELECT DISTINCT t.name FROM match m JOIN team t ON t.id IN (m.home_team_id, m.away_team_id) WHERE m.competition_id=43 AND m.season_id=106")}
+    assert r["most_similar"] and all(p["team"] in teams_in_scope for p in r["most_similar"])
+    out = get_similar_players(competition_id=43, season_id=106, player_id=999999)   # nobody: no minutes anywhere
+    assert "error" in out and "World Cup" in out["error"] and "999999" not in out["error"] and "outside_scope_hint" not in out
+    assert "error" in get_plays_like(competition_id=43, season_id=106, player_id=999999)
+
+
+@pytest.mark.usefixtures("needs_laliga")
+def test_low_minutes_player_is_compared_inside_scope_with_a_low_confidence_caveat(ready_db):
+    from halfspace import db
+    from halfspace.agent.tools import get_similar_players
+    c = db.connect()
+    row = c.execute("""SELECT pmm.player_id, SUM(pmm.minutes) mins FROM player_match_minutes pmm JOIN match m ON m.id = pmm.match_id
+                       WHERE m.competition_id = 43 AND m.season_id = 106 GROUP BY pmm.player_id HAVING mins BETWEEN 100 AND 250 LIMIT 1""").fetchone()
+    if row is None:
+        pytest.skip("no short-minutes World Cup player")
+    r = get_similar_players(competition_id=43, season_id=106, player_id=row["player_id"])
+    assert "caveat" in r and "low-confidence" in r["caveat"] and r["most_similar"]
+    assert "outside_scope_hint" not in r
