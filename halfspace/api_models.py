@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, HTTPException
 
 from halfspace import db, lookups
-from halfspace.models import momentum, report, roles, serve, xg
+from halfspace.models import momentum, report, roles, search, serve, xg
 
 router = APIRouter()
 
@@ -128,3 +128,99 @@ def match_report(match_id: int):
     if out is None:
         raise HTTPException(404, f"no report for match {match_id} (not ingested or models not built)")
     return out
+
+
+# --- fixtures, results and standings (current season, from the serving DB) ---
+
+def _fx_conn():
+    from halfspace.ingest import fixtures
+    return fixtures._conn()
+
+
+def _best_source(c, code: str):
+    """football-data.org when we have it for this competition (richer, official), else openfootball."""
+    row = c.execute("SELECT source FROM fixture WHERE competition_code=? GROUP BY source "
+                    "ORDER BY (source = 'football-data.org') DESC, MAX(updated_at) DESC LIMIT 1", (code,)).fetchone()
+    return row["source"] if row else None
+
+
+@router.get("/fixtures/competitions")
+def fixture_competitions():
+    c = _fx_conn()
+    rows = c.execute("SELECT competition_code, competition, season, source, COUNT(*) n, SUM(status='FINISHED') finished, "
+                     "MAX(updated_at) updated_at FROM fixture GROUP BY competition_code, source ORDER BY competition_code").fetchall()
+    return {"competitions": [dict(r) for r in rows]}
+
+
+@router.get("/fixtures")
+def fixtures(competition: str, status: str | None = None, team: str | None = None, date_from: str | None = None,
+             date_to: str | None = None, limit: int = 50):
+    """Fixtures and results for one competition code (PL, PD, BL1, SA, FL1, PPL, DED, ...). status: SCHEDULED | FINISHED | LIVE."""
+    c = _fx_conn()
+    src = _best_source(c, competition.upper())
+    if src is None:
+        raise HTTPException(404, f"no fixtures for '{competition}' (run the refresh_fixtures job)")
+    q, args = "SELECT * FROM fixture WHERE competition_code=? AND source=?", [competition.upper(), src]
+    if status:
+        q += " AND status=?"
+        args.append(status.upper())
+    if team:
+        q += " AND (home LIKE ? OR away LIKE ?)"
+        args += [f"%{team}%", f"%{team}%"]
+    if date_from:
+        q += " AND kickoff >= ?"
+        args.append(date_from)
+    if date_to:
+        q += " AND kickoff <= ?"
+        args.append(date_to + "T99")
+    rows = c.execute(q + " ORDER BY kickoff LIMIT ?", (*args, min(limit, 500))).fetchall()
+    return {"competition": competition.upper(), "source": src, "fixtures": [dict(r) for r in rows],
+            "note": "Scores are delayed on the free football-data.org tier. openfootball is community-maintained and may lag."}
+
+
+@router.get("/standings/{competition}")
+def standings(competition: str):
+    c = _fx_conn()
+    src = _best_source(c, competition.upper())
+    rows = c.execute("SELECT * FROM standing WHERE competition_code=? AND source=? ORDER BY position", (competition.upper(), src)).fetchall() if src else []
+    if not rows:
+        raise HTTPException(404, f"no standings for '{competition}'")
+    return {"competition": competition.upper(), "source": src, "season": rows[0]["season"], "updated_at": rows[0]["updated_at"],
+            "table": [dict(r) for r in rows],
+            "note": "From openfootball results (computed) or football-data.org (official), whichever is available."}
+
+
+# --- tracking-derived measures ---
+
+@router.get("/tracking/{provider}/{match_id}/pitch-control")
+def tracking_pitch_control(provider: str, match_id: str, grid: bool = True):
+    out = serve.tracking_pitch_control(provider, match_id, grid)
+    if out is None:
+        raise HTTPException(404, "no pitch-control data for this match (only SkillCorner matches; run build_models tracking)")
+    return out
+
+
+@router.get("/tracking/{provider}/{match_id}/physical")
+def tracking_physical(provider: str, match_id: str):
+    out = serve.tracking_physical(provider, match_id)
+    if out is None:
+        raise HTTPException(404, "no physical data for this match")
+    return out
+
+
+@router.get("/tracking-physical/leaders")
+def tracking_physical_leaders(metric: str = "sprints", top_n: int = 10):
+    out = serve.tracking_physical_leaders(metric, min(top_n, 50))
+    if "error" in out:
+        raise HTTPException(400, out["error"])
+    return out
+
+
+@router.get("/search")
+def search_all(q: str, kind: str | None = None, limit: int = 10):
+    """Search players, teams, matches and tactical concepts by what they are like (kind: player|team|match|concept)."""
+    if kind and kind not in ("player", "team", "match", "concept"):
+        raise HTTPException(400, "kind must be player, team, match or concept")
+    if not search.INDEX_PATH.exists():
+        raise HTTPException(503, "search index not built yet (run build_models search)")
+    return search.query(q[:200], kind, min(limit, 30))

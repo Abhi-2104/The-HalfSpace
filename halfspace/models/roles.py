@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import homogeneity_score
 
 from halfspace import derive
+from halfspace import names as pn
 from halfspace.models.xg import MODEL_DIR
 
 CARD_PATH = MODEL_DIR / "roles_card.json"
@@ -96,10 +97,11 @@ def similar_players(conn, player_id: int, competition_id: int, season_id: int, t
     near = t.assign(distance=d)[t["player_id"] != player_id].sort_values("distance").iloc[:top_n]  # other players only
     ids = [int(i) for i in near["player_id"]]
     names = {r["id"]: r["name"] for r in conn.execute(f"SELECT id, name FROM player WHERE id IN ({','.join(map(str, ids))})")}
+    shown = pn.display_names(conn, ids)
     cs = {(r["cid"], r["sid"]): f"{r['c']} {r['s']}" for r in conn.execute(
         "SELECT c.id cid, s.id sid, c.name c, s.name s FROM competition c JOIN season s ON s.competition_id=c.id")}
     return {"player_id": player_id, "role": me.iloc[0]["role"],
-            "plays_like": [{"player_id": int(r.player_id), "name": names.get(int(r.player_id)),
+            "plays_like": [{"player_id": int(r.player_id), "name": names.get(int(r.player_id)), "display_name": shown.get(int(r.player_id)),
                             "competition": cs.get((int(r.competition_id), int(r.season_id))), "role": r.role,
                             "distance": round(float(r.distance), 2)} for r in near.itertuples()],
             "note": "Nearest players in role space across all competitions. Cross-league similarity is style, not quality."}

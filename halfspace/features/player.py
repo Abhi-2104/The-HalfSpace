@@ -98,15 +98,16 @@ def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season
         elif e["type_name"] == "Pressure":
             p["pressures"] += 1
 
-    names = {r["id"]: r["name"] for r in conn.execute(
-        f"SELECT id, name FROM player WHERE id IN ({placeholders})", player_ids).fetchall()}
+    names, shown = {}, {}
+    for r in conn.execute(f"SELECT id, name, display_name FROM player WHERE id IN ({placeholders})", player_ids).fetchall():
+        names[r["id"]], shown[r["id"]] = r["name"], r["display_name"] or r["name"]
     team_names = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM team").fetchall()}
 
     out = []
     for p in profiles.values():
         minutes = p["minutes"]
         row = {
-            "player_id": p["player_id"], "name": names.get(p["player_id"]),
+            "player_id": p["player_id"], "name": names.get(p["player_id"]), "display_name": shown.get(p["player_id"]),
             "team": team_names.get(p["team_id"]), "position": p["position"], "minutes": round(minutes, 1),
         }
         for key in ("goals", "shots", "key_passes", "prog_passes", "prog_carries", "dribbles_completed", "pressures", "touches"):
@@ -161,7 +162,7 @@ def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: in
         "peer_group_size": len(pool),
         "reliability_note": f"minimum {MIN_MINUTES} minutes required; small peer groups reduce confidence" if len(pool) < 15 else None,
         "most_similar": [
-            {"player_id": p["player_id"], "name": p["name"], "team": p["team"], "similarity": round(sim, 3),
+            {"player_id": p["player_id"], "name": p["name"], "display_name": p.get("display_name"), "team": p["team"], "similarity": round(sim, 3),
              "features": {f: p[f] for f in SIMILARITY_FEATURES}}
             for p, sim in ranked
         ],
@@ -182,7 +183,7 @@ def compare_players(conn: sqlite3.Connection, player_a: int, player_b: int, comp
     role_mismatch = a["position"] != b["position"]
     caveat = None
     if role_mismatch:
-        caveat = (f"{a['name']} ({a['position']}) and {b['name']} ({b['position']}) play different positions - "
+        caveat = (f"{a.get('display_name') or a['name']} ({a['position']}) and {b.get('display_name') or b['name']} ({b['position']}) play different positions - "
                   "a raw stat comparison may not be meaningful. Consider find_similar_players within a role "
                   "peer group instead of a direct head-to-head.")
     return {"player_a": a, "player_b": b, "diff_a_minus_b": diff, "role_mismatch": role_mismatch, "caveat": caveat}

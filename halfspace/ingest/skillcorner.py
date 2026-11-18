@@ -24,8 +24,8 @@ RAW_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "raw" / "skil
 LICENSE = "SkillCorner Open Data - free, research use, see repo LICENSE for redistribution terms"
 
 
-def _fetch_cached(url: str, cache_path: Path) -> bytes:
-    if cache_path.exists():
+def _fetch_cached(url: str, cache_path: Path, refresh: bool = False) -> bytes:
+    if cache_path.exists() and not refresh:
         return cache_path.read_bytes()
     with urlopen(url) as resp:
         data = resp.read()
@@ -34,8 +34,9 @@ def _fetch_cached(url: str, cache_path: Path) -> bytes:
     return data
 
 
-def fetch_match_list() -> list:
-    data = _fetch_cached(f"{RAW_BASE}/matches.json", RAW_DIR / "matches.json")
+def fetch_match_list(refresh: bool = True) -> list:
+    """Always re-read the match list by default: the repo has grown (10 -> 20 matches) since it was first cached."""
+    data = _fetch_cached(f"{RAW_BASE}/matches.json", RAW_DIR / "matches.json", refresh)
     return json.loads(data)
 
 

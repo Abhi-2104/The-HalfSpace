@@ -26,7 +26,7 @@ If a comparison is flagged role_mismatch or low_sample, say why that weakens the
 just reporting the numbers. \
 Earlier conversation turns are context for resolving references like "him" or "that season"; \
 call tools again for any new figure instead of reusing numbers from earlier answers. \
-Never mention code, function names, module paths or tool names. Answer in plain football language. \
+Refer to players by their display_name (the name they are known by), not the full legal name. Never mention code, function names, module paths or tool names. Answer in plain football language. \
 Use plain markdown: tables only for numbers, never <br> or HTML inside tables; use bullet lists for text."""
 
 

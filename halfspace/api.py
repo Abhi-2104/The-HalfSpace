@@ -22,6 +22,7 @@ from halfspace.features import player as player_features
 from halfspace.features import team as team_features
 from halfspace.features import sequences, spatial, pitch
 from halfspace.api_models import router as models_router
+from halfspace.admin import router as admin_router
 
 
 def warm_caches():
@@ -59,6 +60,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(models_router)
+app.include_router(admin_router)
 
 # dev-only: frontend runs on Vite's default port, backend on uvicorn's.
 # Both are localhost, no real cross-origin trust boundary to defend at this stage.

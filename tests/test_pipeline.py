@@ -102,3 +102,20 @@ def test_framepack_roundtrip_within_a_tenth_of_a_yard():
     area = [10.5, 0.0, 99.9, 80.0]
     assert all(abs(a - b) <= 0.05 + 1e-9 for a, b in zip(area, framepack.unpack_area(framepack.pack_area(area))))
     assert len(framepack.pack_players(players)) == 10  # 5 bytes per player
+
+
+def test_impect_kpis_are_stored_per_player_and_ingest_needs_terms_acceptance(tmp_path, monkeypatch):
+    import sqlite3
+    import pytest
+    from halfspace.ingest import impect
+    monkeypatch.delenv("HALFSPACE_ACCEPT_IMPECT_TERMS", raising=False)
+    with pytest.raises(SystemExit, match="Terms of Use"):
+        impect.ingest()
+    conn = sqlite3.connect(tmp_path / "r.db")
+    conn.executescript(impect.SCHEMA)
+    doc = {"matchId": 7, "squadHome": {"id": 1, "players": [{"id": 10, "position": "GK", "playDuration": 5400.0,
+                                                              "kpis": [{"kpiId": 0, "value": 2.5}, {"kpiId": 1}]}]},
+           "squadAway": {"id": 2, "players": [{"id": 20, "position": "CB", "playDuration": 5000.0, "kpis": [{"kpiId": 0, "value": 1.0}]}]}}
+    assert impect.store_player_kpis(conn, doc) == 2          # the KPI with no value is skipped
+    assert impect.store_player_kpis(conn, doc) == 2          # re-ingest replaces, does not duplicate
+    assert conn.execute("SELECT COUNT(*) FROM impect_player_kpi").fetchone()[0] == 2

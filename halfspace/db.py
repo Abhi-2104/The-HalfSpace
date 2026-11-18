@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS team (
 
 CREATE TABLE IF NOT EXISTS player (
     id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,              -- full legal name from the provider
+    display_name TEXT                -- name the player is known by (nickname, else a guess); see halfspace/names.py
 );
 
 CREATE TABLE IF NOT EXISTS match (
@@ -129,13 +130,30 @@ CREATE TABLE IF NOT EXISTS tracking_team_match (
 """
 
 
-def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    return conn
+_ready: set[str] = set()  # databases whose schema/WAL setup already ran in this process
 
+
+def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
+    """Open the DB. Wait up to 30s for a lock instead of failing, and run the schema + switch to WAL once per
+    process: WAL lets the API read while an ingest writes (a request used to run CREATE statements, which
+    fought the ingest for the write lock and failed with 'database is locked')."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000")
+    key = str(db_path)
+    if key not in _ready:
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")  # persists in the file; needs a moment with no other writer
+            conn.execute("PRAGMA synchronous = NORMAL")
+        except sqlite3.OperationalError:
+            pass  # another process holds it right now; the next process to connect switches it
+        conn.executescript(SCHEMA)
+        if "display_name" not in {r[1] for r in conn.execute("PRAGMA table_info(player)")}:
+            conn.execute("ALTER TABLE player ADD COLUMN display_name TEXT")  # databases created before display names existed
+            conn.commit()
+        _ready.add(key)
+    return conn
 
 def season_match_count(conn: sqlite3.Connection, competition_id: int, season_id: int) -> int:
     """Cheap data-version for per-season caches: ingesting new matches changes it."""

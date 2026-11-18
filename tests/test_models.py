@@ -63,8 +63,9 @@ def test_momentum_story_for_the_2022_final():
     j = r.json()
     assert len(j["momentum"]) == len(j["minutes"]) and all(-100 <= m <= 100 for m in j["momentum"])
     goals = [m for m in j["moments"] if m["kind"] == "goal"]
-    assert len(goals) == 4                                    # 2-2 in regulation
-    # Argentina (home side in this match list) dominated the first half: momentum leans their way at minute 30
+    assert len(goals) == 6 and j["extra_time"]                # 2-2 in regulation + 1-1 in extra time; shoot-out excluded
+    assert len(j["minutes"]) > 100 and j["period_ends"] == [45, 90, 105, 120]
+    assert any(g["minute"] >= 105 for g in goals)             # the extra-time goals are on the chart
     assert j["momentum"][30] != 0
 
 
@@ -148,3 +149,87 @@ def test_match_report_mentions_both_teams_and_flags_extra_time():
         pytest.skip("final not ingested")
     text = " ".join(r.json()["text"])
     assert "Argentina" in text and "France" in text and "Extra time was played" in text
+
+
+# --- fixtures and standings ---
+
+def test_standings_are_computed_from_results_with_tiebreaks():
+    from halfspace.ingest.fixtures import standings_from_results
+    ms = [{"home": "A", "away": "B", "home_score": 2, "away_score": 0, "status": "FINISHED"},
+          {"home": "C", "away": "A", "home_score": 1, "away_score": 1, "status": "FINISHED"},
+          {"home": "B", "away": "C", "home_score": 3, "away_score": 0, "status": "FINISHED"},
+          {"home": "A", "away": "C", "home_score": None, "away_score": None, "status": "SCHEDULED"}]
+    t = {r["team"]: r for r in standings_from_results(ms)}
+    assert t["A"]["points"] == 4 and t["B"]["points"] == 3 and t["C"]["points"] == 1 and t["A"]["position"] == 1
+    assert t["B"]["goal_diff"] == 1 and t["A"]["played"] == 2                 # the scheduled match is not counted
+
+
+def test_football_data_response_is_mapped_and_missing_key_is_a_clear_error(tmp_path, monkeypatch):
+    from halfspace import derive as d
+    from halfspace.ingest import fixtures as fx
+    monkeypatch.setattr(d, "DERIVED_DB", tmp_path / "d.db")
+    monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
+    monkeypatch.setattr(fx, "load_dotenv", lambda: None)
+    with pytest.raises(RuntimeError, match="FOOTBALL_DATA_KEY"):
+        fx.refresh_football_data()
+
+    def fake(url, headers=None):
+        if url.endswith("/matches"):
+            return {"competition": {"name": "Premier League"}, "filters": {"season": "2026"}, "matches": [
+                {"id": 1, "matchday": 3, "utcDate": "2026-09-05T14:00:00Z", "status": "FINISHED", "homeTeam": {"name": "X"},
+                 "awayTeam": {"name": "Y"}, "score": {"fullTime": {"home": 2, "away": 1}}}]}
+        return {"standings": [{"type": "TOTAL", "table": [{"position": 1, "team": {"name": "X"}, "playedGames": 1, "won": 1, "draw": 0,
+                                                            "lost": 0, "goalsFor": 2, "goalsAgainst": 1, "goalDifference": 1, "points": 3}]}]}
+    monkeypatch.setattr(fx, "FD_CODES", ["PL"])
+    out = fx.refresh_football_data(key="k", fetch=fake, pause=0)
+    assert out["PL"] == {"fixtures": 1, "table_rows": 1}
+    c = d.connect_derived()
+    assert c.execute("SELECT home, home_score, source FROM fixture").fetchone()[:] == ("X", 2, "football-data.org")
+
+
+def test_fixture_endpoints_prefer_the_official_source(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from halfspace import derive as d
+    from halfspace.api import app
+    from halfspace.ingest import fixtures as fx
+    monkeypatch.setattr(d, "DERIVED_DB", tmp_path / "d.db")
+    c = fx._conn()
+    for src, home in (("openfootball", "Open FC"), ("football-data.org", "Official FC")):
+        fx._store(c, src, "PL", [{"match_id": "1", "competition": "Premier League", "season": "2026", "matchday": "1", "kickoff": "2026-09-05T14:00",
+                                  "status": "FINISHED", "home": home, "away": "Z", "home_score": 1, "away_score": 0}],
+                  [{"position": 1, "team": home, "played": 1, "won": 1, "drawn": 0, "lost": 0, "goals_for": 1, "goals_against": 0,
+                    "goal_diff": 1, "points": 3, "season": "2026"}])
+    cl = TestClient(app)
+    j = cl.get("/fixtures", params={"competition": "pl"}).json()
+    assert j["source"] == "football-data.org" and j["fixtures"][0]["home"] == "Official FC"
+    assert cl.get("/standings/PL").json()["table"][0]["team"] == "Official FC"
+    assert cl.get("/fixtures", params={"competition": "XX"}).status_code == 404
+
+
+@needs_models
+def test_tracking_physical_and_pitch_control_are_sane():
+    import sqlite3
+    c = derive.connect_derived()
+    try:
+        ph = pd.read_sql("SELECT * FROM tracking_physical", c)
+        pc = pd.read_sql("SELECT match_id, SUM(control_share) s FROM tracking_pitch_control GROUP BY match_id", c)
+    except Exception:
+        pytest.skip("tracking not built")
+    assert len(pc) >= 10 and (pc["s"].sub(1).abs() < 0.01).all()           # two teams split the pitch
+    big = ph[ph["tracked_min"] >= 30]
+    assert 90 < big["distance_per_tracked_min"].median() < 170              # roughly 5.5-10 km/h average running
+    assert ph["top_speed_kmh"].max() < 45 and (ph["detected_share"].between(0, 1)).all()
+    assert (ph["sprints"] >= 0).all() and (ph["hsr_m"] <= ph["distance_m"]).all()
+
+
+@needs_models
+def test_search_finds_concepts_players_and_matches():
+    from halfspace.models import search
+    if not search.INDEX_PATH.exists():
+        pytest.skip("search index not built")
+    top = lambda q, **kw: search.query(q, **kw)["results"]
+    assert top("what is a high press")[0]["kind"] == "concept" and "press" in top("what is a high press")[0]["title"].lower()
+    assert top("counterattacking", kind="concept")[0]["title"] in ("Counterattack", "Transition (attacking/defensive)", "Gegenpressing (counter-press)")
+    assert any("Messi" in r["title"] for r in top("Messi", kind="player"))
+    assert all(r["kind"] == "match" for r in top("extra time", kind="match")) and top("extra time", kind="match")
+    assert search.query("zzzzqqqq")["results"] == []                         # nonsense finds nothing instead of a random list

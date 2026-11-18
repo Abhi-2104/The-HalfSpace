@@ -5,6 +5,7 @@ import json
 import pandas as pd
 
 from halfspace import derive
+from halfspace import names as pn
 from halfspace.models import momentum, xg
 from halfspace.models.profiles import METRICS
 
@@ -19,6 +20,11 @@ def _names(conn, ids) -> dict:
     if not ids:
         return {}
     return {r["id"]: r["name"] for r in conn.execute(f"SELECT id, name FROM player WHERE id IN ({','.join(map(str, ids))})")}
+
+
+def _shown(conn, ids) -> dict:
+    """player id -> the name the player is known by (display_name, else the full name)."""
+    return pn.display_names(conn, ids)
 
 
 def player_profile(conn, competition_id: int, season_id: int, player_id: int) -> dict | None:
@@ -50,7 +56,8 @@ def player_profile(conn, competition_id: int, season_id: int, player_id: int) ->
                       "WHERE competition_id=? AND season_id=? AND player_id=?", (competition_id, season_id, player_id)).fetchone()
     except Exception:
         v = None
-    return {"player_id": player_id, "name": _names(conn, [player_id]).get(player_id), "competition_id": competition_id,
+    return {"player_id": player_id, "name": _names(conn, [player_id]).get(player_id), "display_name": _shown(conn, [player_id]).get(player_id),
+            "competition_id": competition_id,
             "season_id": season_id, "position_group": r["position_group"], "role": role["role"] if role else None,
             "on_ball_value": None if v is None else {"per90": v["per90"], "per90_adjusted": v["per90_adj"], "percentile": v["percentile"],
                                                       "by_action_per90": {"pass": v["pass_p90"], "carry": v["carry_p90"], "shot": v["shot_p90"], "defence": v["defence_p90"]}}, "minutes": round(r["minutes"]),
@@ -71,9 +78,9 @@ def leaders(conn, competition_id: int, season_id: int, metric: str, position_gro
         q += " AND position_group=?"
         args.append(position_group.upper())
     rows = derive.connect_derived().execute(q + " ORDER BY adjusted DESC LIMIT ?", (*args, top_n)).fetchall()
-    names = _names(conn, [r["player_id"] for r in rows])
+    names, shown = _names(conn, [r["player_id"] for r in rows]), _shown(conn, [r["player_id"] for r in rows])
     return {"metric": metric, "label": LABELS[metric], "ranked_by": "per-90 adjusted for sample size",
-            "players": [{"player_id": r["player_id"], "name": names.get(r["player_id"]), **{k: r[k] for k in
+            "players": [{"player_id": r["player_id"], "name": names.get(r["player_id"]), "display_name": shown.get(r["player_id"]), **{k: r[k] for k in
                          ("position_group", "minutes", "per90", "adjusted", "percentile", "confidence")}} for r in rows]}
 
 
@@ -179,10 +186,47 @@ def goalkeepers(conn, competition_id: int, season_id: int, top_n: int = 10) -> d
         (competition_id, season_id)).fetchall()
     if not rows:
         return {"error": "no goalkeeper ratings for this competition/season (needs 20+ on-target shots faced)"}
-    names = _names(conn, [r["keeper_id"] for r in rows])
+    names, shown = _names(conn, [r["keeper_id"] for r in rows]), _shown(conn, [r["keeper_id"] for r in rows])
     return {"ranked_by": "goals prevented per 100 on-target shots, shrunk for sample size", "goalkeepers": [
-        {"player_id": r["keeper_id"], "name": names.get(r["keeper_id"]), "shots_faced": r["shots_faced"],
+        {"player_id": r["keeper_id"], "name": names.get(r["keeper_id"]), "display_name": shown.get(r["keeper_id"]), "shots_faced": r["shots_faced"],
          "goals_conceded": r["goals_conceded"], "expected_goals_conceded": round(r["psxg_faced"], 1),
          "goals_prevented": r["goals_prevented"], "prevented_per_100": r["prevented_per_100"],
          "save_pct": r["save_pct"], "expected_save_pct": r["expected_save_pct"]} for r in rows[:top_n]],
         "note": "Noisy below ~150 shots faced. Excludes penalties. Positive = saved more than an average keeper would."}
+
+
+# --- tracking-derived (SkillCorner broadcast tracking) ---
+
+def tracking_pitch_control(provider: str, match_id: str, with_grid: bool = True) -> dict | None:
+    rows = derive.connect_derived().execute("SELECT * FROM tracking_pitch_control WHERE provider=? AND match_id=?", (provider, match_id)).fetchall()
+    if not rows:
+        return None
+    teams = []
+    for r in rows:
+        t = {"team": r["team"], "is_home": bool(r["is_home"]), "control_share": r["control_share"],
+             "control_share_attacking_third": r["control_share_attacking_third"], "frames_sampled": r["frames_sampled"]}
+        if with_grid:
+            t["grid"] = json.loads(r["grid"])  # [x][y], 4 m cells, this team attacking toward +x
+        teams.append(t)
+    return {"provider": provider, "match_id": match_id, "teams": teams,
+            "note": "Simplified pitch control: who could reach each cell first (6 m/s), sampled once a second. Ignores velocity and the ball. "
+                    "Broadcast tracking, so off-camera players are extrapolated."}
+
+
+def tracking_physical(provider: str, match_id: str, top_n: int = 40) -> dict | None:
+    rows = derive.connect_derived().execute(
+        "SELECT * FROM tracking_physical WHERE provider=? AND match_id=? ORDER BY distance_per_tracked_min DESC LIMIT ?", (provider, match_id, top_n)).fetchall()
+    if not rows:
+        return None
+    return {"provider": provider, "match_id": match_id, "players": [dict(r) for r in rows],
+            "note": "Computed only from frames where the player was actually detected (detected_share shows coverage); "
+                    "compare players on distance_per_tracked_min, not totals. High speed >= 5.5 m/s, sprint >= 7 m/s."}
+
+
+def tracking_physical_leaders(metric: str = "sprints", top_n: int = 10) -> dict:
+    if metric not in ("sprints", "hsr_m", "sprint_m", "distance_per_tracked_min", "top_speed_kmh"):
+        return {"error": "metric must be one of sprints, hsr_m, sprint_m, distance_per_tracked_min, top_speed_kmh"}
+    rows = derive.connect_derived().execute(
+        f"SELECT * FROM tracking_physical WHERE tracked_min >= 30 ORDER BY {metric} DESC LIMIT ?", (top_n,)).fetchall()
+    return {"metric": metric, "players": [dict(r) for r in rows],
+            "note": "Single-match performances with 30+ tracked minutes from broadcast tracking (A-League 2024/25); extrapolated off-camera positions excluded."}

@@ -14,10 +14,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from halfspace import derive
-from halfspace.models import goalkeeper, momentum, passframes, possessions, profiles, roles, style, vaep, xg, xpass, xt
+from halfspace.models import goalkeeper, momentum, passframes, possessions, profiles, roles, search, style, tracking, vaep, xg, xpass, xt
 
 STEPS = {"derive": derive.build, "xg": xg.train, "momentum": momentum.train, "xt": xt.train, "profiles": profiles.train, "possessions": possessions.train, "style": style.train,
-         "xpass": xpass.train, "passframes": passframes.train, "goalkeeper": goalkeeper.train, "roles": roles.train, "vaep": vaep.train}
+         "xpass": xpass.train, "passframes": passframes.train, "goalkeeper": goalkeeper.train, "roles": roles.train, "vaep": vaep.train, "tracking": tracking.train, "search": search.build}
 
 
 def main():

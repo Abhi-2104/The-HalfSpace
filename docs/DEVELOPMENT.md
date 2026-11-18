@@ -119,6 +119,8 @@ Agent evaluation against the real model (uses free-tier quota; stops cleanly on 
 .venv/bin/python3 scripts/eval_agent.py            # 10 golden questions in tests/agent_eval.json
 ```
 
+See [HOSTING.md](HOSTING.md) for hosting, the admin portal and the data sources' terms.
+
 ## Agent API
 
 `POST /agent/ask`

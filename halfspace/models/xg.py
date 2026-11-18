@@ -95,13 +95,15 @@ def train() -> dict:
     return card
 
 
-_model = None
+_model, _model_mtime = None, 0.0
 
 
 def _load():
-    global _model
-    if _model is None:
-        _model = joblib.load(MODEL_PATH)
+    """Reload when the file changes, so a rebuild from the admin portal is picked up without a restart."""
+    global _model, _model_mtime
+    m = MODEL_PATH.stat().st_mtime
+    if _model is None or m != _model_mtime:
+        _model, _model_mtime = joblib.load(MODEL_PATH), m
     return _model
 
 
@@ -144,13 +146,14 @@ def stored_xg(match_id: int) -> dict[str, float]:
     return {r["event_id"]: r["xg_v2"] for r in rows}
 
 
-_shots_cache = None
+_shots_cache, _shots_mtime = None, 0.0
 
 
 def explain_event(event_id: str) -> dict | None:
-    global _shots_cache
-    if _shots_cache is None:
-        _shots_cache = derive.load_shots().set_index("event_id")
+    global _shots_cache, _shots_mtime
+    m = (derive.OUT / "shots.pkl").stat().st_mtime
+    if _shots_cache is None or m != _shots_mtime:
+        _shots_cache, _shots_mtime = derive.load_shots().set_index("event_id"), m
     if event_id not in _shots_cache.index:
         return None
     return {"event_id": event_id, **explain(_shots_cache.loc[event_id])}

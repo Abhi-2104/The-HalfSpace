@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 data/*.db
+data/restricted.db*
+data/*.db-wal
+data/*.db-shm
 data/raw/
 data/models/
 .pytest_cache/
@@ -13,3 +16,4 @@ data/models/
 !.env.example
 data/derived/
 data/eval/
+data/admin/

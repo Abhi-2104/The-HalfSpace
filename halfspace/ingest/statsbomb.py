@@ -183,6 +183,9 @@ def ingest_match(conn: sqlite3.Connection, match_id: int, events_path: Path = No
             ),
         )
 
+    from halfspace import names
+    names.apply_lineups(conn, lineups)
+
     # minutes played - reconstructed from lineup position segments, not assumed from presence.
     # match_end covers periods 1-4 (regulation + extra time) - period 5 (shootout) is not
     # playing time. Segments are merged as intervals, not summed raw: a real anomaly found

@@ -83,6 +83,7 @@ def get_match_profile(conn: sqlite3.Connection, match_id: int) -> dict | None:
 def get_match_shots(conn: sqlite3.Connection, match_id: int) -> list[dict]:
     rows = conn.execute(
         """SELECT e.id, e.team_id, t.name AS team_name, e.player_id, p.name AS player_name,
+                  COALESCE(p.display_name, p.name) AS display_name,
                   e.minute, e.second, e.x, e.y, e.outcome_name, e.body_part
            FROM event e
            JOIN team t ON t.id = e.team_id

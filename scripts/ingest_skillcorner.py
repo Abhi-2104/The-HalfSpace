@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI: ingest all matches in SkillCorner Open Data (10 matches, 2024/25 A-League),
+"""CLI: ingest all matches in SkillCorner Open Data (2024/25 A-League; the repo now lists 20 matches),
 computing team compactness (width/length) for each. Idempotent."""
 import sys
 from pathlib import Path

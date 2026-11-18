@@ -12,7 +12,7 @@ from halfspace import db, lookups, tactical
 from halfspace.features import player as player_features
 from halfspace.features import team as team_features
 from halfspace.features import sequences, spatial
-from halfspace.models import report, roles, serve, xg
+from halfspace.models import report, roles, search, serve, xg
 
 
 @dataclass
@@ -175,6 +175,19 @@ def get_match_report(match_id: int) -> dict:
 
 
 @_wrap
+def get_tracking_physical(provider: str = "skillcorner_open_data", match_id: str = None, metric: str = "sprints") -> dict:
+    if match_id:
+        out = serve.tracking_physical(provider, str(match_id), 8)
+        return out or {"error": f"no tracking physical data for match {match_id}"}
+    return serve.tracking_physical_leaders(metric, 8)
+
+
+@_wrap
+def search_football(query: str, kind: str = None) -> dict:
+    return search.query(query[:200], kind, 8)
+
+
+@_wrap
 def explain_shot(event_id: str) -> dict:
     return xg.explain_event(event_id) or {"error": f"no shot {event_id}"}
 
@@ -253,6 +266,12 @@ TOOLS: list[ToolSpec] = [
              get_plays_like),
     ToolSpec("get_match_report", "A short written match report: xG, who was on top when, goals and big chances, top threat creators.",
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_report),
+    ToolSpec("get_tracking_physical", "Running load from broadcast tracking (A-League 2024/25): for one match_id the players' distance, high-speed "
+             "and sprints per tracked minute; without match_id the top single-match performances by metric (sprints, hsr_m, sprint_m, top_speed_kmh).",
+             {"type": "object", "properties": {"match_id": {"type": "string"}, "metric": {"type": "string"}}}, get_tracking_physical),
+    ToolSpec("search_football", "Find players, teams, matches or tactical concepts by description (kind: player|team|match|concept), "
+             "e.g. 'high pressing teams', 'creative midfielders', 'upsets'. Returns ids to look up with other tools.",
+             {"type": "object", "properties": {"query": {"type": "string"}, "kind": {"type": "string"}}, "required": ["query"]}, search_football),
     ToolSpec("explain_shot", "Why a shot has its xG: top factors (approximate attribution).",
              {"type": "object", "properties": {"event_id": {"type": "string"}}, "required": ["event_id"]}, explain_shot),
 ]

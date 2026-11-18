@@ -85,7 +85,7 @@ def pass_network(conn: sqlite3.Connection, match_id: int, team_id: int, until_fi
         ).fetchone()
         cutoff = sub["m"] if sub and sub["m"] is not None else None
 
-    q = """SELECT e.player_id, p.name AS player_name, e.x, e.y, e.end_x, e.end_y, e.minute
+    q = """SELECT e.player_id, p.name AS player_name, COALESCE(p.display_name, p.name) AS display_name, e.x, e.y, e.end_x, e.end_y, e.minute
            FROM event e LEFT JOIN player p ON p.id = e.player_id
            WHERE e.match_id=? AND e.team_id=? AND e.type_name='Pass'
              AND e.outcome_name IS NULL AND e.x IS NOT NULL AND e.end_x IS NOT NULL
@@ -103,12 +103,13 @@ def pass_network(conn: sqlite3.Connection, match_id: int, team_id: int, until_fi
     # nodes (reliable) and edges from pass end-location proximity to teammate nodes.
     from collections import defaultdict
     loc_sum = defaultdict(lambda: [0.0, 0.0, 0])
-    names = {}
+    names, shown = {}, {}
     for r in passes:
         acc = loc_sum[r["player_id"]]
         acc[0] += r["x"]; acc[1] += r["y"]; acc[2] += 1
         names[r["player_id"]] = r["player_name"]
-    nodes = {pid: {"player_id": pid, "name": names.get(pid),
+        shown[r["player_id"]] = r["display_name"]
+    nodes = {pid: {"player_id": pid, "name": names.get(pid), "display_name": shown.get(pid),
                    "x": round(acc[0] / acc[2], 1), "y": round(acc[1] / acc[2], 1), "passes": acc[2]}
              for pid, acc in loc_sum.items() if acc[2] > 0}
 
@@ -160,6 +161,7 @@ def match_shots_with_xg(conn: sqlite3.Connection, match_id: int) -> list[dict]:
     v2 = xg_v2.stored_xg(match_id)
     rows = conn.execute(
         """SELECT e.id, e.team_id, t.name AS team_name, e.player_id, p.name AS player_name,
+                  COALESCE(p.display_name, p.name) AS display_name,
                   e.minute, e.second, e.x, e.y, e.outcome_name, e.body_part,
                   (ff.event_id IS NOT NULL) AS has_freeze_frame
            FROM event e
