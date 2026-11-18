@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { displayName } from "../lib/names";
 import { Link } from "react-router-dom";
 import { api, type PlayerProfile } from "../lib/api";
 import { useCompetitionSelection } from "../lib/useCompetitionSelection";
@@ -48,7 +49,7 @@ export function Players() {
   const teams = useMemo(() => [...new Set((players ?? []).map((p) => p.team))].sort(), [players]);
   const positions = useMemo(() => [...new Set((players ?? []).map((p) => p.position))].sort(), [players]);
   const rows = useMemo(() => {
-    const list = (players ?? []).filter((p) => (!team || p.team === team) && (!position || p.position === position) && matches(q, p.name, p.team));
+    const list = (players ?? []).filter((p) => (!team || p.team === team) && (!position || p.position === position) && matches(q, p.name, p.display_name, p.team));
     return list.sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name) * dir : ((a[sort] as number) - (b[sort] as number)) * dir));
   }, [players, q, team, position, sort, dir]);
   const top = Math.max(...rows.map((p) => p[metric]), 1e-9); // bars are relative to the leader of the current view
@@ -115,7 +116,7 @@ export function Players() {
               >
                 <span className="text-right text-xs tabular-nums text-ink-2">{i + 1}</span>
                 <div className="min-w-0">
-                  <div className="truncate font-medium text-ink-0">{p.name}</div>
+                  <div className="truncate font-medium text-ink-0">{displayName(p.name, p.display_name)}</div>
                   <div className="truncate text-xs text-ink-2">{p.team} · {p.position}</div>
                 </div>
                 {analyst ? (

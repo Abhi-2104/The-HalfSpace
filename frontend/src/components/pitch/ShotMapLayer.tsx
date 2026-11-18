@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import { displayName } from "../../lib/names";
 import type { ShotXg } from "../../lib/api";
+import { BallIcon } from "../icons";
 
 /**
  * xG shot map. Dot area scales with xG (our own xG-lite model). Blue is the home
@@ -45,20 +47,35 @@ export function ShotMapLayer({
             onClick={clickable ? () => onSelect!(s) : undefined}
           >
             {clickable && <circle className="shot-hover-ring" cx={s.x} cy={s.y} r={r + 1.5} fill="none" stroke="#fff" strokeWidth={0.5} />}
-            {selected && <circle cx={s.x} cy={s.y} r={r + 1.9} fill="none" stroke="#fff" strokeWidth={0.8} />}
+            {selected && <circle cx={s.x} cy={s.y} r={r + 2.1} fill="none" stroke="#fff" strokeWidth={1} />}
             <g filter="url(#shot-shadow)">
-              {isGoal && <circle cx={s.x} cy={s.y} r={r + 1} fill="none" stroke="#fff" strokeWidth={0.55} />}
-              <circle cx={s.x} cy={s.y} r={r} fill={color} fillOpacity={isGoal ? 1 : 0.8} stroke="#fff" strokeWidth={isGoal ? 0.5 : 0.35} />
-              {isGoal && <circle cx={s.x} cy={s.y} r={Math.max(0.5, r * 0.32)} fill="#fff" />}
+              <circle cx={s.x} cy={s.y} r={r} fill={color} fillOpacity={isGoal ? 1 : 0.8} stroke="#fff" strokeWidth={isGoal ? 0.55 : 0.35} />
+              {isGoal && <BallIcon x={s.x - Math.max(1.3, r * 0.6)} y={s.y - Math.max(1.3, r * 0.6)} width={Math.max(2.6, r * 1.2)} height={Math.max(2.6, r * 1.2)} />}
             </g>
             <title>
-              {s.player_name ?? "Unknown"} ({s.team_name}) — {s.outcome_name}
+              {displayName(s.player_name, s.display_name)} ({s.team_name}) — {s.outcome_name}
               {s.xg != null ? `, xG ${s.xg.toFixed(2)}` : ""}, {s.minute}'{s.second}"
               {clickable ? " · click for freeze-frame" : ""}
             </title>
           </motion.g>
         );
       })}
+      {(() => {
+        // the chosen shot's label is drawn last, so no other dot can cover it
+        const s = shots.find((x) => x.id === selectedId);
+        if (!s || s.x == null) return null;
+        const r = 1 + Math.sqrt(s.xg ?? 0.05) * 3.4;
+        const text = `${displayName(s.player_name, s.display_name)}${s.xg != null ? ` · ${s.xg.toFixed(2)} xG` : ""}`;
+        const w = text.length * 1.35 + 4;
+        const cx = Math.min(116 - w / 2, Math.max(4 + w / 2, s.x)); // kept inside the pitch
+        const y = s.y - r - 3.2 < 3 ? s.y + r + 6 : s.y - r - 3.2; // below the dot when near the top edge
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            <rect x={cx - w / 2} y={y - 3.4} width={w} height={5} rx={2.5} fill="var(--color-ink-0)" />
+            <text x={cx} y={y} textAnchor="middle" fontSize={2.5} fontWeight={700} fill="var(--color-pitch-950)">{text}</text>
+          </g>
+        );
+      })()}
     </g>
   );
 }

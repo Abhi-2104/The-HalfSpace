@@ -45,37 +45,20 @@ export function Tactics() {
         The ideas coaches and commentators talk about. For each one: what it is, what it is used for, and how we get it from the data, or why we can't.
       </p>
 
-      {/* how we get them */}
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {tiers.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTier(tier === t ? "" : t)}
-            aria-pressed={tier === t}
-            className={`rounded-2xl border p-4 text-left transition-colors ${tier === t ? "border-marker bg-marker/10" : "border-pitch-800 bg-pitch-900 hover:border-pitch-700"}`}
-          >
-            <div className="flex items-center justify-between">
-              <ConfidenceBadge tier={t} />
-              <span className="font-display text-2xl font-extrabold text-ink-0">{counts[t]}</span>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-ink-1">{TIER_INFO[t]?.how}</p>
-          </button>
-        ))}
-      </div>
-
       <Toolbar count={rows.length} total={concepts?.length} noun="concepts">
         <SearchBox value={q} onChange={setQ} placeholder="Search a concept" />
-        {tier && <Chip on onClick={() => setTier("")}>{TIER_INFO[tier]?.label} ✕</Chip>}
       </Toolbar>
-      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Playing styles or tactics">
+      <div className="mt-3 grid gap-x-8 gap-y-3 md:grid-cols-[auto_auto_1fr]">
+        <Group label="Kind">
           <Chip on={!kind} onClick={() => setKind("")}>All</Chip>
           {(Object.keys(KINDS) as Kind[]).map((k) => <Chip key={k} on={kind === k} onClick={() => setKind(kind === k ? "" : k)}>{KINDS[k].label}</Chip>)}
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Phase of play">
+        </Group>
+        <Group label="Phase of play">
           {(Object.keys(PHASES) as Phase[]).map((p) => <Chip key={p} on={phase === p} onClick={() => setPhase(phase === p ? "" : p)}>{PHASES[p]}</Chip>)}
-        </div>
+        </Group>
+        <Group label="How we get it">
+          {tiers.map((t) => <Chip key={t} on={tier === t} onClick={() => setTier(tier === t ? "" : t)}>{TIER_INFO[t]?.label} <span className="text-ink-2">{counts[t]}</span></Chip>)}
+        </Group>
       </div>
 
       {!concepts ? (
@@ -101,6 +84,19 @@ export function Tactics() {
           );
         })
       )}
+
+      <section className="mt-16 border-t border-pitch-800 pt-10">
+        <h2 className="font-display text-2xl font-extrabold tracking-[-0.02em] text-ink-0">How we get each idea</h2>
+        <p className="mt-1 max-w-2xl text-sm text-ink-1">Not every idea can be measured from open data. The tag on each card says which of these applies.</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tiers.map((t) => (
+            <div key={t} className="flex h-full flex-col rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
+              <div className="flex items-center justify-between"><ConfidenceBadge tier={t} /><span className="font-display text-2xl font-extrabold text-ink-0">{counts[t]}</span></div>
+              <p className="mt-2 text-sm leading-relaxed text-ink-1">{TIER_INFO[t]?.how}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -130,5 +126,14 @@ function Card({ c, i }: { c: TacticalConcept; i: number }) {
         </Link>
       </div>
     </motion.article>
+  );
+}
+
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-2">{label}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
   );
 }

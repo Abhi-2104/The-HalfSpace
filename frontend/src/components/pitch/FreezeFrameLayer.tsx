@@ -35,7 +35,7 @@ export function FreezeFrameLayer({ frame, ballLocation }: { frame: FreezeFrame; 
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.03, ease: [0.34, 1.56, 0.64, 1] }}
           >
-            <PlayerMark x={x} y={y} color={color} scale={p.actor ? 1.25 : 1} shooter={p.actor} keeper={p.keeper} />
+            <PlayerMark x={x} y={y} color={color} scale={p.actor ? 1.9 : 1.5} shooter={p.actor} keeper={p.keeper} />
           </motion.g>
         );
       })}

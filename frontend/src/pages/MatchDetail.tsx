@@ -67,7 +67,7 @@ export function MatchDetail() {
         ▶ Guided match story
       </Link>
 
-      {report.data && report.data.text.length > 0 && <div className="mt-8"><MatchReport report={report.data} /></div>}
+      {report.data && report.data.text.length > 0 && <div className="mt-8"><MatchReport report={report.data} home={match.home_team} away={match.away_team} homeTeamId={match.home_team_id} /></div>}
 
       {/* signature interaction: shot map + freeze-frame */}
       <div className="mt-10">
@@ -78,7 +78,7 @@ export function MatchDetail() {
         <section className="mt-10 rounded-2xl border border-pitch-800 bg-pitch-900 p-4 sm:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-display text-lg font-bold text-ink-0">How the match flowed</h2>
-            <span className="text-xs text-ink-2">Regulation time only</span>
+            <span className="text-xs text-ink-2">{flow.data.extra_time || flow.data.minutes.length > 100 ? "Includes extra time" : "First 90 minutes"}</span>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-ink-1">Who was creating the better chances, minute by minute, and how the chance quality added up. It describes what happened; it doesn't predict anything. <Link to="/how-it-works#momentum" className="text-marker-bright hover:underline">How is this calculated?</Link></p>
           <div className="mt-5 grid gap-8 lg:grid-cols-[1.2fr_1fr]">

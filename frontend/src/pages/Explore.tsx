@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { displayName } from "../lib/names";
 import { Link } from "react-router-dom";
 import { animate, motion, useMotionValue, useScroll, useTransform, type MotionValue } from "framer-motion";
 import { api, type DataCoverage, type FreezeFrame, type MatchDetailInfo, type Overview, type PassNetwork, type PlayerProfile, type ShotXg, type TeamProfile, type TacticalConceptSummary } from "../lib/api";
@@ -209,61 +210,108 @@ function Hero({ overview, featured, settled }: { overview: Overview | null; feat
 }
 
 /* ---------- Pinned scroll story ---------- */
-/** A floating caption. It fades in at `from`, drifts across the screen while it is on, and fades out at `to`. */
-function Caption({ progress, from, to, title, body, pos, drift, last = false }: {
-  progress: MotionValue<number>; from: number; to: number; title: string; body: string; pos: string; drift: [number, number]; last?: boolean;
+/** A chapter of the story. It rises in at `from`, drifts across the screen while it is on, and fades out at `to`. */
+function Caption({ progress, from, to, n, title, body, pos, drift, last = false }: {
+  progress: MotionValue<number>; from: number; to: number; n: number; title: string; body: string; pos: string; drift: [number, number]; last?: boolean;
 }) {
   const fade = 0.05;
   const opacity = useTransform(progress, [from, from + fade, to - fade, to], [0, 1, 1, last ? 1 : 0]);
-  const y = useTransform(progress, [from, to], [drift[1] + 30, drift[1] - 30]);
+  const y = useTransform(progress, [from, to], [drift[1] + 40, drift[1] - 40]);
   const x = useTransform(progress, [from, to], [-drift[0], drift[0]]);
   return (
-    <motion.div style={{ opacity, x, y }} className={`pointer-events-none absolute z-10 max-w-[19rem] rounded-3xl border border-pitch-800 bg-pitch-900/80 p-5 shadow-xl backdrop-blur-md sm:max-w-sm sm:p-6 ${pos}`}>
-      <h2 className="font-display text-2xl font-extrabold leading-[1.08] tracking-[-0.03em] text-ink-0 sm:text-3xl">{title}</h2>
-      <p className="mt-3 text-[15px] leading-relaxed text-ink-1">{body}</p>
+    <motion.div style={{ opacity, x, y }} className={`pointer-events-none absolute z-10 max-w-[20rem] sm:max-w-[27rem] ${pos}`}>
+      {/* a soft wash of the page colour keeps the words readable over the pitch, with no box around them */}
+      <div className="absolute -inset-x-10 -inset-y-8 -z-10" aria-hidden style={{ background: "radial-gradient(closest-side, color-mix(in oklab, var(--color-pitch-950) 88%, transparent), transparent)" }} />
+      <div className="font-mono text-xs tracking-[0.2em] text-marker-bright">0{n} <span className="text-ink-2">/ 04</span></div>
+      <h2 className="mt-2 font-display text-3xl font-extrabold leading-[1.04] tracking-[-0.035em] text-ink-0 sm:text-[2.75rem]">{title}</h2>
+      <p className="mt-4 text-base leading-relaxed text-ink-1 sm:text-lg">{body}</p>
     </motion.div>
   );
 }
+
+/** One big number that belongs to the current chapter. */
+function Stat({ progress, from, to, value, label, last = false }: { progress: MotionValue<number>; from: number; to: number; value: string; label: string; last?: boolean }) {
+  const fade = 0.05;
+  const opacity = useTransform(progress, [from, from + fade, to - fade, to], [0, 1, 1, last ? 1 : 0]);
+  const y = useTransform(progress, [from, from + fade, to - fade, to], [24, 0, 0, last ? 0 : -24]);
+  return (
+    <motion.div style={{ opacity, y }} className="absolute bottom-0 right-0 text-right">
+      <div className="font-display text-6xl font-extrabold leading-none tracking-[-0.04em] text-ink-0 sm:text-8xl">{value}</div>
+      <div className="mt-2 text-sm text-ink-2 sm:text-base">{label}</div>
+    </motion.div>
+  );
+}
+
+function Dot({ progress, from, to, last = false }: { progress: MotionValue<number>; from: number; to: number; last?: boolean }) {
+  const a = Math.max(0, from - 0.02);
+  const scale = useTransform(progress, [a, from + 0.02, to - 0.02, to], [1, 1.9, 1.9, last ? 1.9 : 1]);
+  const fill = useTransform(progress, [a, from + 0.02], [0.28, 1]);
+  return <motion.i style={{ scale, opacity: fill }} className="block h-2 w-2 rounded-full bg-marker" />;
+}
+
+const STEPS: Array<[number, number]> = [[0, 0.2], [0.2, 0.44], [0.44, 0.68], [0.68, 1]];
 
 function Story({ featured, settled }: { featured: Featured | null; settled: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const bar = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
-  // the stage slowly breathes: the backdrop glow slides as the camera moves
-  const glowX = useTransform(scrollYProgress, [0, 1], ["20%", "85%"]);
-  const glow = useTransform(glowX, (x) => `radial-gradient(60% 55% at ${x} 50%, color-mix(in oklab, var(--color-marker) 14%, transparent), transparent 70%)`);
+  // the backdrop moves with the camera: two soft glows drift across, and the dot grid slides under the pitch
+  const g1x = useTransform(scrollYProgress, [0, 1], ["12%", "88%"]);
+  const g2x = useTransform(scrollYProgress, [0, 1], ["95%", "10%"]);
+  const glow = useTransform([g1x, g2x] as MotionValue<string>[], ([a, b]: string[]) =>
+    `radial-gradient(45% 50% at ${a} 35%, color-mix(in oklab, var(--color-marker) 16%, transparent), transparent 70%), radial-gradient(40% 45% at ${b} 75%, color-mix(in oklab, var(--color-warm) 11%, transparent), transparent 70%)`);
+  const grid = useTransform(scrollYProgress, [0, 1], [0, -140]);
   const m = featured?.match;
 
   const facts = useMemo(() => {
     if (!featured) return null;
     const best = [...featured.shots].filter((s) => s.xg != null).sort((a, b) => (b.xg ?? 0) - (a.xg ?? 0))[0] ?? null;
-    return { best, total: featured.shots.length };
+    const goals = featured.shots.filter((s) => s.outcome_name === "Goal").length;
+    return { best, total: featured.shots.length, goals };
   }, [featured]);
   const focus = featured?.focus ?? null;
+  const visible = featured?.freeze?.freeze_frame.length ?? 0;
 
   return (
-    <section ref={ref} className="relative h-[520vh]" aria-label="How to read a match">
+    <section ref={ref} className="relative h-[640vh]" aria-label="How to read a match">
       <div className="sticky top-0 h-screen overflow-hidden">
+        <motion.div className="absolute inset-x-0 -top-40 bottom-[-9rem] opacity-70" aria-hidden style={{ y: grid, backgroundImage: "radial-gradient(var(--color-pitch-700) 1px, transparent 1px)", backgroundSize: "30px 30px", maskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, #000 25%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, #000 25%, transparent 100%)" }} />
         <motion.div className="absolute inset-0" style={{ backgroundImage: glow }} aria-hidden />
-        {/* the pitch fills the whole screen; the captions float over it */}
-        <div className="absolute inset-0 flex items-center justify-center pt-10">
-          <div className="w-[min(125vw,calc(100vh*1.9))] shrink-0">
-            {featured && m ? <IsoPitch shots={featured.shots} homeTeamId={m.home_team_id} progress={scrollYProgress} freeze={featured.freeze} /> : <PitchPlaceholder settled={settled} />}
+
+        {/* the pitch fills the screen and fades into the backdrop at its edges, so it has no hard border */}
+        <div className="absolute inset-0 flex items-center justify-center pt-10" style={{ maskImage: "radial-gradient(ellipse 62% 66% at 50% 52%, #000 45%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 62% 66% at 50% 52%, #000 45%, transparent 100%)" }}>
+          <div className="w-[min(118vw,calc(100vh*1.8))] shrink-0">
+            {featured && m ? <IsoPitch look="board" shots={featured.shots} homeTeamId={m.home_team_id} progress={scrollYProgress} freeze={featured.freeze} /> : <PitchPlaceholder settled={settled} />}
           </div>
         </div>
 
-        <Caption progress={scrollYProgress} from={0} to={0.2} pos="left-4 top-24 sm:left-[6%] sm:top-[22%]" drift={[30, 0]}
+        <Caption progress={scrollYProgress} from={STEPS[0][0]} to={STEPS[0][1]} n={1} pos="left-5 top-24 sm:left-[5%] sm:top-[24%]" drift={[24, 10]}
           title="Every shot of a match, on one map"
           body={m && facts ? `${m.home_team} v ${m.away_team} had ${facts.total} shots. Each dot is a real one, placed where it was taken.` : "Each dot is a real shot, placed where it was taken."} />
-        <Caption progress={scrollYProgress} from={0.2} to={0.44} pos="right-4 top-24 sm:right-[6%] sm:top-[16%]" drift={[-40, 10]}
+        <Caption progress={scrollYProgress} from={STEPS[1][0]} to={STEPS[1][1]} n={2} pos="left-5 bottom-28 sm:left-[5%] sm:bottom-[16%]" drift={[36, -14]}
           title="Height shows chance quality"
           body={m ? `Taller means a better chance, rated by our xG model. Blue is ${m.home_team}, orange is ${m.away_team}.` : "Taller means a better chance, rated by our xG model."} />
-        <Caption progress={scrollYProgress} from={0.44} to={0.68} pos="left-4 bottom-24 sm:left-[6%] sm:bottom-[14%]" drift={[50, -10]}
+        <Caption progress={scrollYProgress} from={STEPS[2][0]} to={STEPS[2][1]} n={3} pos="left-5 top-24 sm:left-[5%] sm:top-[16%]" drift={[30, 16]}
           title={facts?.best ? `${describe(facts.best)} stands out` : "One chance stands out"}
           body={facts?.best ? `Rated ${xgText(facts.best)} xG, the best chance of the match. The tall column is easy to spot.` : "The tallest column was the best chance."} />
-        <Caption progress={scrollYProgress} from={0.68} to={1} last pos="right-4 top-24 sm:right-[6%] sm:top-[20%]" drift={[-30, 0]}
+        <Caption progress={scrollYProgress} from={STEPS[3][0]} to={STEPS[3][1]} n={4} last pos="left-5 bottom-28 sm:left-[5%] sm:bottom-[22%]" drift={[24, -10]}
           title="See where every player stood"
           body={focus ? `${describe(focus)}, rated ${xgText(focus)} xG. These are the players the cameras could see at that instant.` : "Every shot with 360 data shows where each visible player stood."} />
+
+        {/* a big number for each chapter */}
+        {facts && (
+          <div className="pointer-events-none absolute bottom-28 right-6 h-28 w-64 sm:bottom-24 sm:right-[5%]" aria-hidden>
+            <Stat progress={scrollYProgress} from={STEPS[0][0]} to={STEPS[0][1]} value={String(facts.total)} label="shots on the map" />
+            <Stat progress={scrollYProgress} from={STEPS[1][0]} to={STEPS[1][1]} value={String(facts.goals)} label={facts.goals === 1 ? "goal scored" : "goals scored"} />
+            <Stat progress={scrollYProgress} from={STEPS[2][0]} to={STEPS[2][1]} value={facts.best ? xgText(facts.best) : "–"} label="xG, the best chance" />
+            {visible > 0 && <Stat progress={scrollYProgress} from={STEPS[3][0]} to={STEPS[3][1]} last value={String(visible)} label="players in the frame" />}
+          </div>
+        )}
+
+        {/* where you are in the story */}
+        <div className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 flex-col items-center gap-4 sm:flex" aria-hidden>
+          {STEPS.map(([a, b], i) => <Dot key={i} progress={scrollYProgress} from={a} to={b} last={i === 3} />)}
+        </div>
 
         <div className="absolute bottom-6 left-1/2 hidden w-56 -translate-x-1/2 sm:block" aria-hidden>
           <div className="h-1 overflow-hidden rounded-full bg-pitch-800">
@@ -344,7 +392,7 @@ function Showcase({ featured, board, concepts }: { featured: Featured | null; bo
         </Reveal>
         <Reveal delay={0.05} className="lg:col-span-2">
           <Tile to="/players" title="Players" className="h-full" blurb={board ? `Top scorers per 90 minutes, ${board.label}. Compare any two, or find players like them.` : "Per-90 profiles and look-alikes."}>
-            <Bars rows={players.map((p) => ({ key: p.player_id, name: p.name, sub: p.team, value: p.goals_p90, shown: `${p.goals_p90.toFixed(2)} /90` }))} />
+            <Bars rows={players.map((p) => ({ key: p.player_id, name: displayName(p.name, p.display_name), sub: p.team, value: p.goals_p90, shown: `${p.goals_p90.toFixed(2)} /90` }))} />
           </Tile>
         </Reveal>
         <Reveal delay={0.1} className="lg:col-span-2">
@@ -440,8 +488,8 @@ export function Explore() {
   return (
     <>
       <Hero overview={overview} featured={featured} settled={settled} />
-      <Showcase featured={featured} board={board} concepts={concepts} />
       <Story featured={featured} settled={settled} />
+      <Showcase featured={featured} board={board} concepts={concepts} />
       <Honest overview={overview} featured={featured} />
       <Closing />
     </>

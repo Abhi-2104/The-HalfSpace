@@ -1,5 +1,6 @@
 import { LoadError } from "../components/LoadError";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { displayName } from "../lib/names";
 import { Link, useParams } from "react-router-dom";
 import { api, type MatchDetailInfo, type ShotXg, type FreezeFrame } from "../lib/api";
 import { Pitch } from "../components/pitch/Pitch";
@@ -159,7 +160,7 @@ export function MatchStory() {
                   {m.isGoal && <span className="rounded-lg bg-marker px-1.5 py-0.5 font-mono text-xs font-bold text-ink-0">Goal</span>}
                 </div>
                 <p className="mt-2 text-ink-1">
-                  <span className="text-ink-0">{m.shot.player_name ?? "A player"}</span> ({m.shot.team_name}){" "}
+                  <span className="text-ink-0">{displayName(m.shot.player_name, m.shot.display_name)}</span> ({m.shot.team_name}){" "}
                   {m.isGoal ? "scores" : "gets " + quality(m.shot.xg)}
                   {m.shot.xg != null && (
                     <> — the model rated it <span className="text-marker-bright">{m.shot.xg.toFixed(2)} xG</span>

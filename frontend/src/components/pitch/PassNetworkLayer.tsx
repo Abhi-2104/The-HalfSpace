@@ -1,4 +1,5 @@
 import type { PassNetwork } from "../../lib/api";
+import { displayName, surname } from "../../lib/names";
 import { PlayerMark } from "./PlayerMark";
 
 export interface NetworkSide {
@@ -8,7 +9,6 @@ export interface NetworkSide {
   mirror: boolean;
 }
 
-const last = (name: string | null) => (name ?? "").trim().split(/\s+/).slice(-1)[0];
 
 /**
  * Both teams' pass networks on one pitch, each in its own colour, facing each other. The
@@ -48,8 +48,8 @@ function Side({ side, faded }: { side: NetworkSide; faded: boolean }) {
         const [x, y] = pos(n);
         return (
           <g key={n.player_id}>
-            <PlayerMark x={x} y={y} color={color} scale={0.7 + (n.passes / maxPasses) * 0.55} label={faded ? undefined : last(n.name)} />
-            <title>{n.name}: {n.passes} passes</title>
+            <PlayerMark x={x} y={y} color={color} scale={0.7 + (n.passes / maxPasses) * 0.55} label={faded ? undefined : surname(n.name, n.display_name)} />
+            <title>{displayName(n.name, n.display_name)}: {n.passes} passes</title>
           </g>
         );
       })}

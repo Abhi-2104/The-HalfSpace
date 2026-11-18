@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 /**
  * The flat pitch everything else is drawn onto: turf with mowing stripes and a
@@ -18,7 +18,9 @@ export function Pitch({
   children,
   half = false,
   className,
+  svgRef,
 }: {
+  svgRef?: Ref<SVGSVGElement>;
   children?: ReactNode;
   half?: boolean; // show only the attacking half (x 60 -> 120)
   className?: string;
@@ -32,7 +34,7 @@ export function Pitch({
   for (let x = Math.floor(x0 / 10) * 10; x < PITCH_W + PAD; x += 10) if (Math.round(x / 10) % 2 !== 0) stripes.push(x);
 
   return (
-    <svg viewBox={viewBox} className={className ?? "block w-full rounded-2xl"} role="img" aria-label="Football pitch">
+    <svg ref={svgRef} viewBox={viewBox} className={className ?? "block w-full rounded-2xl"} role="img" aria-label="Football pitch">
       <defs>
         <linearGradient id="pitch-sheen" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#fff" stopOpacity="0.2" />

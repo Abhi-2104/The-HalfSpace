@@ -6,6 +6,8 @@ import { Pitch } from "./Pitch";
 import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
 import { MetricInfo } from "../MetricInfo";
+import { BallIcon, ChanceIcon } from "../icons";
+import { SelectedShot } from "./SelectedShot";
 import { WhyXg } from "../match/WhyXg";
 import { ExpandedView } from "./ExpandedView";
 
@@ -100,9 +102,9 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-1">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-a" /> {homeTeam}</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-team-b" /> {awayTeam}</span>
-          <span className="text-ink-2">{view === "map" ? "ring = goal" : "ringed top = goal"}</span>
+          <span className="flex items-center gap-1 text-ink-2"><BallIcon size={14} />goal</span>
           {view === "3d" && <span className="text-ink-2">+/− or pinch to zoom, drag to turn, shift-drag to pan</span>}
-          {anyFreeze && <span className="text-marker-bright">{view === "map" ? "select a ringed shot" : "select a column"} to see every player</span>}
+          {anyFreeze && <span className="text-marker-bright">{view === "map" ? "select a shot with a ring" : "select a column"} to see every player</span>}
         </div>
         {quickPicks.length > 0 && (
           <div className="mt-4 border-t border-pitch-800 pt-3">
@@ -118,7 +120,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
                     selected?.id === s.id ? "border-marker bg-marker/10 text-ink-0" : "border-pitch-800 text-ink-1 hover:border-pitch-700 hover:text-ink-0"
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${s.team_id === homeTeamId ? "bg-team-a" : "bg-team-b"}`} />
+                  {s.outcome_name === "Goal" ? <BallIcon size={15} ring={s.team_id === homeTeamId ? "var(--color-team-a)" : "var(--color-team-b)"} /> : <ChanceIcon size={14} ring={s.team_id === homeTeamId ? "var(--color-team-a)" : "var(--color-team-b)"} />}
                   {s.minute}′ {s.team_name}
                   {s.xg != null && <span className="text-ink-2">{s.xg.toFixed(2)} xG</span>}
                 </button>
@@ -141,19 +143,17 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
           )}
           {selected && (
             <motion.div key={selected.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <div className="mb-3"><SelectedShot shot={selected} home={selected.team_id === homeTeamId} /></div>
               {loadingFrame && <div className="mx-auto aspect-[68/88] max-h-[560px] animate-pulse rounded-2xl bg-pitch-800/40" aria-label="Loading player positions" />}
               {frame && (
-                <Pitch half className="mx-auto block h-auto max-h-[560px] w-auto max-w-full rounded-2xl">
+                <Pitch half className="mx-auto block h-auto max-h-[600px] w-auto max-w-full rounded-2xl">
                   <FreezeFrameLayer frame={frame} ballLocation={selected.x != null ? [selected.x, selected.y] : undefined} />
                 </Pitch>
               )}
               {!loadingFrame && !frame && <p className="pt-12 text-center text-sm text-clay">No freeze-frame for this shot.</p>}
               {frame && <WhyXg eventId={selected.id} />}
               <p className="mt-3 text-sm text-ink-1">
-                <span className="text-ink-0">{selected.player_name}</span> ({selected.team_name}),{" "}
-                {selected.minute}'{selected.second}" — {selected.outcome_name}
-                {selected.xg != null && <>, <span className="text-marker-bright">xG {selected.xg.toFixed(2)}</span></>}.
-                {" "}White centre = shooter. Blue = shooter's team, orange = defenders, GK = keeper. The shaded wedge is how much of the goal the shooter could see.
+                The shooter has the pulsing ring. Blue is the shooter's team, orange the defenders, GK the keeper. The shaded wedge is how much of the goal the shooter could see.
               </p>
             </motion.div>
           )}

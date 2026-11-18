@@ -22,8 +22,28 @@ function ScrollToTopOnNavigate() {
   return null;
 }
 
+// A hard flick must not carry the page far past what the reader meant to see. Each wheel event is
+// limited, and the scroll target can never run more than 0.8 of a screen ahead of where the page is.
+const MAX_STEP = 90;
+const LEAD = 0.8;
+
 export function SmoothScroll({ children }: { children: ReactNode }) {
   const ref = useRef<LenisRef>(null);
+  const options = useRef({
+    autoRaf: false,
+    lerp: 0.12,
+    smoothWheel: true,
+    wheelMultiplier: 0.8,
+    virtualScroll: (e: { deltaY: number; event: Event }) => {
+      const l = ref.current?.lenis;
+      if (!l || e.event.type !== "wheel" || e.event.defaultPrevented) return true;
+      const cap = window.innerHeight * LEAD;
+      const lead = l.targetScroll - l.animatedScroll;
+      if (Math.abs(lead) > cap) l.targetScroll = l.animatedScroll + Math.sign(lead) * cap;
+      e.deltaY = Math.max(-MAX_STEP, Math.min(MAX_STEP, e.deltaY));
+      return true;
+    },
+  });
 
   useEffect(() => {
     if (reduced()) return;
@@ -41,7 +61,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
     );
   }
   return (
-    <ReactLenis root ref={ref} options={{ autoRaf: false, lerp: 0.09, smoothWheel: true }}>
+    <ReactLenis root ref={ref} options={options.current}>
       <ScrollToTopOnNavigate />
       {children}
     </ReactLenis>

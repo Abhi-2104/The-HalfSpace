@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { displayName } from "../../lib/names";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, type MotionValue } from "framer-motion";
 import type { FreezeFrame, ShotXg } from "../../lib/api";
 import { IsoPitch } from "../iso/IsoPitch";
 import { Pitch } from "./Pitch";
+import { ExplorablePitch } from "./ExplorablePitch";
+import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
 import { Chip } from "../list";
+import { BallIcon } from "../icons";
+import { SelectedShot } from "./SelectedShot";
 import { WhyXg } from "../match/WhyXg";
 
 const HOME = { zoom: 1, ox: -28, oy: 0 };
@@ -29,6 +34,8 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
   onPick: (s: ShotXg) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<"3d" | "map">("3d");
+  const cam = useRef<{ preset: (n: string) => void } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -73,7 +80,14 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
             <div className="flex items-center justify-between gap-4 border-b border-pitch-800 px-5 py-3">
               <div className="min-w-0">
                 <h2 className="truncate font-display text-lg font-bold text-ink-0">{homeTeam} v {awayTeam}</h2>
-                <p className="text-xs text-ink-2">Taller column = better chance. +/− or pinch to zoom, drag to turn, shift-drag to pan, double-click to reset.</p>
+                <p className="text-xs text-ink-2">
+                  {view === "3d" ? "Taller column = better chance. Scroll to zoom, drag to turn, shift-drag to pan, double-click to reset." : "Dot size = chance quality. Scroll to zoom, drag to move around, double-click to reset."}
+                </p>
+              </div>
+              <div className="ml-auto flex rounded-full border border-pitch-800 p-0.5 text-xs font-medium" role="group" aria-label="View">
+                {([["3d", "3D"], ["map", "Map"]] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setView(v)} aria-pressed={view === v} className={`rounded-full px-3.5 py-1.5 transition-colors ${view === v ? "bg-marker text-on-accent" : "text-ink-1 hover:text-ink-0"}`}>{label}</button>
+                ))}
               </div>
               <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-pitch-800 text-ink-1 transition-colors hover:border-marker hover:text-ink-0">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -81,8 +95,20 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
             </div>
 
             <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)] lg:overflow-hidden">
-              <div className="flex items-center justify-center bg-pitch-950/40 p-2 lg:min-h-0">
-                {shots && <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={progress} onSelect={onPick} interactive home={HOME} className="w-full max-w-[calc((100vh-11rem)*1.5625)]" />}
+              <div className="relative flex flex-col items-center justify-center gap-2 overflow-hidden bg-pitch-950/40 p-2 lg:min-h-0">
+                {shots && view === "3d" && <IsoPitch shots={shots} homeTeamId={homeTeamId} progress={progress} onSelect={onPick} interactive wheelZoom onReady={(a) => { cam.current = a; }} home={HOME} className="w-full max-w-[calc((100vh-13rem)*1.5625)]" />}
+                {shots && view === "map" && (
+                  <ExplorablePitch className="w-full max-w-[calc((100vh-12rem)*1.4545)]">
+                    <ShotMapLayer shots={shots} homeTeamId={homeTeamId} selectedId={selected?.id} onSelect={onPick} />
+                  </ExplorablePitch>
+                )}
+                {view === "3d" && (
+                  <div className="absolute inset-x-0 bottom-3 z-10 flex flex-wrap justify-center gap-1.5" role="group" aria-label="Camera views">
+                    {([["overview", "Overview"], ["top", "Top down"], ["left", "From the left"], ["right", "From the right"], ["goalR", "Goal area"]] as const).map(([k, label]) => (
+                      <button key={k} type="button" onClick={() => cam.current?.preset(k)} className="rounded-full border border-pitch-800 bg-pitch-900/80 px-3 py-1 text-xs font-medium text-ink-1 transition-colors hover:border-marker hover:text-ink-0">{label}</button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex min-h-0 flex-col gap-4 border-t border-pitch-800 p-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
@@ -97,22 +123,18 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
                 </div>
 
                 <div>
+                  {selected && <div className="mb-3"><SelectedShot shot={selected} home={selected.team_id === homeTeamId} /></div>}
                   <h3 className="mb-2 text-sm font-semibold text-ink-0">{selected ? "Where everyone stood" : "Pick a shot"}</h3>
                   {!selected && <p className="text-sm text-ink-2">Click a column, or a row below, to see where every visible player stood the moment the shot was taken.</p>}
                   {selected && loadingFrame && <div className="mx-auto aspect-[68/88] max-h-[340px] animate-pulse rounded-2xl bg-pitch-800/40" />}
                   {selected && frame && (
-                    <Pitch half className="mx-auto block h-auto max-h-[380px] w-auto max-w-full rounded-2xl">
+                    <Pitch half className="mx-auto block h-auto max-h-[520px] w-auto max-w-full rounded-2xl">
                       <FreezeFrameLayer frame={frame} ballLocation={selected.x != null ? [selected.x, selected.y] : undefined} />
                     </Pitch>
                   )}
                   {selected && !loadingFrame && !frame && <p className="text-sm text-clay">No freeze-frame for this shot.</p>}
                   {selected && frame && <WhyXg eventId={selected.id} />}
-                  {selected && (
-                    <p className="mt-2 text-sm text-ink-1">
-                      <span className="text-ink-0">{selected.player_name}</span> ({selected.team_name}), {selected.minute}′: {selected.outcome_name}
-                      {selected.xg != null && <>, <span className="text-marker-bright">{selected.xg.toFixed(2)} xG</span></>}
-                    </p>
-                  )}
+                  
                 </div>
 
                 <div>
@@ -128,7 +150,7 @@ export function ExpandedView({ open, onClose, shots, homeTeamId, homeTeam, awayT
                           className={`grid w-full grid-cols-[2.5rem_minmax(0,1fr)_3rem] items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-pitch-800/50 ${selected?.id === s.id ? "bg-marker/10" : ""}`}>
                           <span className="font-mono text-xs text-ink-2">{s.minute}′</span>
                           <span className="min-w-0">
-                            <span className="flex items-center gap-1.5 truncate text-ink-0"><i className={`h-2 w-2 shrink-0 rounded-full ${s.team_id === homeTeamId ? "bg-team-a" : "bg-team-b"}`} />{s.player_name ?? "Unknown"}</span>
+                            <span className="flex items-center gap-1.5 truncate text-ink-0">{s.outcome_name === "Goal" ? <BallIcon size={15} ring={s.team_id === homeTeamId ? "var(--color-team-a)" : "var(--color-team-b)"} /> : <i className={`h-2 w-2 shrink-0 rounded-full ${s.team_id === homeTeamId ? "bg-team-a" : "bg-team-b"}`} />}{displayName(s.player_name, s.display_name)}</span>
                             <span className="block text-xs text-ink-2">{s.outcome_name}{s.has_freeze_frame ? " · 360" : ""}</span>
                             <span className="mt-1 block h-1 overflow-hidden rounded-full bg-pitch-800"><span className="block h-full rounded-full bg-marker" style={{ width: `${((s.xg ?? 0) / maxXg) * 100}%` }} /></span>
                           </span>

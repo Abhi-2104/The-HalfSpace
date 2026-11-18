@@ -1,3 +1,4 @@
+import { displayName } from "../lib/names";
 import { useEffect, useState } from "react";
 import { api, type PlayerProfile, type TeamProfile } from "../lib/api";
 import { useCompetitionSelection } from "../lib/useCompetitionSelection";
@@ -89,12 +90,12 @@ export function Compare() {
         <EntitySelect
           value={idA}
           onChange={setIdA}
-          options={mode === "players" ? players?.map((p) => [p.player_id, p.name] as const) : teams?.map((t) => [t.team_id, t.team] as const)}
+          options={mode === "players" ? players?.map((p) => [p.player_id, displayName(p.name, p.display_name)] as const) : teams?.map((t) => [t.team_id, t.team] as const)}
         />
         <EntitySelect
           value={idB}
           onChange={setIdB}
-          options={mode === "players" ? players?.map((p) => [p.player_id, p.name] as const) : teams?.map((t) => [t.team_id, t.team] as const)}
+          options={mode === "players" ? players?.map((p) => [p.player_id, displayName(p.name, p.display_name)] as const) : teams?.map((t) => [t.team_id, t.team] as const)}
         />
       </div>
 

@@ -1,4 +1,5 @@
 import { LoadError } from "../components/LoadError";
+import { displayName } from "../lib/names";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, type SimilarPlayersResult, type Heatmap } from "../lib/api";
@@ -40,7 +41,7 @@ export function PlayerDetail() {
 
   return (
     <div className="mx-auto max-w-[1440px] px-6 lg:px-10 py-12">
-      <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{target.name}</h1>
+      <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] text-ink-0">{displayName(target.name, target.display_name)}</h1>
       <p className="mt-1 font-mono text-sm text-ink-2">{target.team} · {target.position} · {Math.round(target.minutes).toLocaleString()} min</p>
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
@@ -89,7 +90,7 @@ export function PlayerDetail() {
           <li key={m.player_id} className="flex items-center justify-between px-2 py-3">
             <div className="flex items-center gap-3">
               <Link to={`/players/${m.player_id}?competition_id=${competitionId}&season_id=${seasonId}`} className="text-ink-0 hover:text-marker-bright">
-                {m.name}
+                {displayName(m.name, m.display_name)}
               </Link>
               <span className="font-mono text-xs text-ink-2">{m.team}</span>
             </div>

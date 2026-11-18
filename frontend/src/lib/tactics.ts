@@ -56,7 +56,7 @@ export type Phase = "attacking" | "defending" | "transition";
 
 export const KINDS: Record<Kind, { label: string; blurb: string }> = {
   style: { label: "Playing styles", blurb: "How a team chooses to play over a whole match: its identity and approach." },
-  tactic: { label: "Tactics", blurb: "Specific mechanisms and movements a team uses inside a match." },
+  tactic: { label: "Specific tactics", blurb: "Specific mechanisms and movements a team uses inside a match." },
 };
 export const PHASES: Record<Phase, string> = { attacking: "Attacking", defending: "Defending", transition: "Transitions" };
 

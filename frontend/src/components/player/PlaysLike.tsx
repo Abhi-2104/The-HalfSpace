@@ -1,4 +1,5 @@
 import { api } from "../../lib/api";
+import { displayName } from "../../lib/names";
 import { useAsync } from "../../lib/useAsync";
 
 /** Players with a similar style anywhere in the data, including other leagues. Style, not quality. */
@@ -13,7 +14,7 @@ export function PlaysLike({ competitionId, seasonId, playerId }: { competitionId
         {!data && Array.from({ length: 4 }, (_, i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-pitch-800/30" />)}
         {data?.plays_like.map((p) => (
           <div key={p.player_id} className="rounded-2xl border border-pitch-800 bg-pitch-900 p-4">
-            <div className="truncate font-medium text-ink-0">{p.name}</div>
+            <div className="truncate font-medium text-ink-0">{displayName(p.name, p.display_name)}</div>
             {p.competition && <div className="mt-0.5 truncate text-xs text-ink-2">{p.competition}</div>}
             <div className="mt-2 flex items-center gap-2" title="Closer means a more similar style">
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-pitch-800">

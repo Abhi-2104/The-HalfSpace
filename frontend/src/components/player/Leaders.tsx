@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { displayName } from "../../lib/names";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useAsync } from "../../lib/useAsync";
 import { Chip, Empty, SkeletonRows } from "../list";
+import { BootIcon } from "../icons";
 
 const METRICS: [string, string][] = [
   ["npxg", "Non-penalty xG"], ["goals_np", "Non-penalty goals"], ["shots_np", "Shots"], ["xa", "Assists (xA)"],
@@ -20,7 +22,7 @@ export function Leaders({ competitionId, seasonId }: { competitionId: number; se
   return (
     <div>
       <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Metric">
-        {METRICS.map(([k, label]) => <Chip key={k} on={metric === k} onClick={() => setMetric(k)}>{label}</Chip>)}
+        {METRICS.map(([k, label]) => <Chip key={k} on={metric === k} onClick={() => setMetric(k)}><span className="inline-flex items-center gap-1.5">{k === "xa" && <BootIcon size={14} />}{label}</span></Chip>)}
       </div>
       <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Position group">
         {GROUPS.map(([k, label]) => <Chip key={k} on={group === k} onClick={() => setGroup(k)}>{label}</Chip>)}
@@ -36,7 +38,7 @@ export function Leaders({ competitionId, seasonId }: { competitionId: number; se
                 <Link to={`/players/${p.player_id}?competition_id=${competitionId}&season_id=${seasonId}`} className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,12rem)_4rem] items-center gap-3 px-4 py-3 transition-colors hover:bg-pitch-800/40">
                   <span className="text-right text-xs tabular-nums text-ink-2">{i + 1}</span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-ink-0">{p.name}</span>
+                    <span className="block truncate font-medium text-ink-0">{displayName(p.name, p.display_name)}</span>
                     <span className="block text-xs text-ink-2">{Math.round(p.minutes).toLocaleString()} min{p.confidence < 0.6 ? " · limited sample" : ""}</span>
                   </span>
                   <span className="hidden h-2 overflow-hidden rounded-full bg-pitch-800 sm:block" aria-hidden><span className="block h-full rounded-full bg-marker" style={{ width: `${(p.adjusted / top) * 100}%` }} /></span>

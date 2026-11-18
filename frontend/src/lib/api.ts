@@ -106,6 +106,7 @@ export interface Shot {
   team_name: string;
   player_id: number | null;
   player_name: string | null;
+  display_name?: string | null;
   minute: number;
   second: number;
   x: number;
@@ -130,6 +131,7 @@ export interface Counterattack {
 export interface PlayerProfile {
   player_id: number;
   name: string;
+  display_name?: string | null;
   team: string;
   position: string;
   minutes: number;
@@ -148,7 +150,7 @@ export interface SimilarPlayersResult {
   peer_group: string;
   peer_group_size: number;
   reliability_note: string | null;
-  most_similar: { player_id: number; name: string; team: string; similarity: number; features: Record<string, number> }[];
+  most_similar: { player_id: number; name: string; display_name?: string | null; team: string; similarity: number; features: Record<string, number> }[];
 }
 
 export interface TeamProfile {
@@ -196,10 +198,12 @@ export interface Momentum {
   home_threat: number[];
   away_threat: number[];
   xg_cumulative: { home: number[]; away: number[] };
-  moments: { minute: number; kind: "goal" | "big_chance"; team_id: number; player: string | null; xg: number; event_id: string; momentum_before: number }[];
+  moments: { minute: number; kind: "goal" | "big_chance"; team_id: number; player: string | null; display_name?: string | null; xg: number; event_id: string; momentum_before: number }[];
   note: string;
+  extra_time?: boolean;
+  period_ends?: number[];
 }
-export interface MatchReport { match_id: number; text: string[]; note: string }
+export interface MatchReport { match_id: number; text: string[]; note: string; facts?: Record<string, any> }
 export interface PossessionList {
   kind: string;
   possessions: { team: string; team_id: number; minute: number; duration_s: number; passes: number; shots: number; xg: number; goals: number; zone: string | null }[];
@@ -227,19 +231,19 @@ export interface ScoutingCard {
 }
 export interface PlaysLike {
   role: string;
-  plays_like: { player_id: number; name: string; competition: string | null; role: string; distance: number }[];
+  plays_like: { player_id: number; name: string; display_name?: string | null; competition: string | null; role: string; distance: number }[];
   note: string;
 }
 export interface Leaders {
   metric: string;
   label: string;
   ranked_by: string;
-  players: { player_id: number; name: string; position_group: string; minutes: number; per90: number; adjusted: number; percentile: number; confidence: number }[];
+  players: { player_id: number; name: string; display_name?: string | null; position_group: string; minutes: number; per90: number; adjusted: number; percentile: number; confidence: number }[];
 }
 export interface Goalkeepers {
   ranked_by: string;
   note: string;
-  goalkeepers: { player_id: number; name: string; shots_faced: number; goals_conceded: number; expected_goals_conceded: number; goals_prevented: number; prevented_per_100: number; save_pct: number; expected_save_pct: number }[];
+  goalkeepers: { player_id: number; name: string; display_name?: string | null; shots_faced: number; goals_conceded: number; expected_goals_conceded: number; goals_prevented: number; prevented_per_100: number; save_pct: number; expected_save_pct: number }[];
 }
 export interface TeamStyle { team_id: number; team: string; matches: number; x: number; y: number; archetype: string; cluster: number; z: Record<string, number> }
 export interface TeamStyles { teams: TeamStyle[]; note: string }
@@ -339,6 +343,7 @@ export interface Heatmap {
 export interface PassNode {
   player_id: number;
   name: string | null;
+  display_name?: string | null;
   x: number;
   y: number;
   passes: number;

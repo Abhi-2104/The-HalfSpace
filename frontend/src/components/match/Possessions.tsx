@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../../lib/api";
 import { useAsync } from "../../lib/useAsync";
 import { Chip } from "../list";
+import { BallIcon } from "../icons";
 
 const KINDS = [
   ["counter", "Counterattacks", "No counterattacks in this match."],
@@ -34,7 +35,7 @@ export function Possessions({ matchId, homeTeam }: { matchId: number; homeTeam: 
                   <span className="block text-xs text-ink-2">{p.passes} passes · {p.duration_s}s{p.zone ? ` · ${p.zone}` : ""}</span>
                 </span>
                 <span className="text-right text-xs">
-                  {p.goals > 0 && <span className="mr-2 font-semibold text-marker-bright">Goal</span>}
+                  {p.goals > 0 && <span className="mr-2 inline-flex items-center gap-1 font-semibold text-ink-0"><BallIcon size={14} />Goal</span>}
                   <span className="text-ink-1">{p.shots} {p.shots === 1 ? "shot" : "shots"} · <span className="font-mono tabular-nums text-ink-0">{p.xg.toFixed(2)}</span> xG</span>
                 </span>
               </li>

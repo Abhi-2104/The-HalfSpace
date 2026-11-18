@@ -1,4 +1,5 @@
 import { api } from "../../lib/api";
+import { displayName } from "../../lib/names";
 import { useAsync } from "../../lib/useAsync";
 import { Empty, SkeletonRows } from "../list";
 
@@ -24,7 +25,7 @@ export function Goalkeepers({ competitionId, seasonId }: { competitionId: number
                 <li key={g.player_id} className="grid grid-cols-[2rem_minmax(0,1fr)_5rem_5.5rem] items-center gap-3 px-4 py-3 md:grid-cols-[2rem_minmax(0,1fr)_minmax(0,10rem)_5rem_5.5rem_5.5rem]">
                   <span className="text-right text-xs tabular-nums text-ink-2">{i + 1}</span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-ink-0">{g.name}</span>
+                    <span className="block truncate font-medium text-ink-0">{displayName(g.name, g.display_name)}</span>
                     <span className={`block text-xs ${good ? "text-marker-bright" : "text-clay"}`}>{good ? "+" : ""}{g.prevented_per_100.toFixed(1)} goals per 100 shots{g.shots_faced < 150 ? " · small sample" : ""}</span>
                   </span>
                   <span className="relative hidden h-2.5 md:block" aria-hidden>

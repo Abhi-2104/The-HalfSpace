@@ -1,6 +1,7 @@
 import type { ScoutingCard as Card } from "../../lib/api";
 import { Link } from "react-router-dom";
 import { useMode } from "../../lib/mode";
+import { BootIcon } from "../icons";
 
 const GROUPS: Record<string, string> = { ATT: "forwards", MID: "midfielders", DEF: "defenders", GK: "goalkeepers" };
 const tone = (p: number) => (p >= 75 ? "bg-marker" : p >= 40 ? "bg-marker/55" : "bg-pitch-700");
@@ -26,7 +27,7 @@ export function ScoutingCardView({ card }: { card: Card }) {
         {card.metrics.map((m) => (
           <li key={m.metric}>
             <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="text-ink-0">{m.label}</span>
+              <span className="inline-flex items-center gap-1.5 text-ink-0">{m.metric === "xa" && <BootIcon size={15} />}{m.label}</span>
               <span className="flex items-baseline gap-2">
                 {mode === "analyst" && <span className="font-mono text-xs text-ink-2">{unit(m.metric, m.per90)} /90</span>}
                 <span className="font-mono text-xs font-semibold tabular-nums text-ink-0" title="Percentile within the same league season and position group">{Math.round(m.percentile)}</span>

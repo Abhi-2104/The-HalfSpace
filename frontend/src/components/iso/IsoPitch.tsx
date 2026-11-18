@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { displayName } from "../../lib/names";
 import { useMotionValueEvent, type MotionValue } from "framer-motion";
 import type { FreezeFrame, ShotXg } from "../../lib/api";
+import { BallIcon } from "../icons";
 
 /**
  * The isometric pitch. Every shot of a match stands on the turf as a column
@@ -128,15 +130,21 @@ export interface IsoPitchProps {
   onSelect?: (shot: ShotXg) => void;
   /** zoom buttons, ctrl/pinch zoom, drag to orbit, shift/right-drag to pan */
   interactive?: boolean;
+  /** the plain mouse wheel zooms (for a full-screen view); otherwise Ctrl or a pinch is needed */
+  wheelZoom?: boolean;
+  /** hands back named camera moves ("top", "left", "right", "goalL", "goalR", "overview") */
+  onReady?: (api: { preset: (name: string) => void }) => void;
+  /** "turf" is a grass pitch; "board" is a tactics board drawn entirely in the site's own theme colours */
+  look?: "turf" | "board";
   /** the resting view for an interactive pitch (reset returns here): zoom and a screen-space nudge */
   home?: { zoom?: number; ox?: number; oy?: number };
   className?: string;
 }
 
-export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, interactive, home, className }: IsoPitchProps) {
+export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, interactive, wheelZoom, onReady, home, look = "turf", className }: IsoPitchProps) {
   // the viewer's own camera on top of the scripted one: zoom, pan (screen units), orbit (degrees)
   const rest = { zoom: home?.zoom ?? 1, ox: home?.ox ?? 0, oy: home?.oy ?? 0 };
-  const user = useRef({ ...rest, dyaw: 0, dtilt: 0 });
+  const user = useRef({ ...rest, dyaw: 0, dtilt: 0, dfx: 0, dfy: 0 });
   const drawRef = useRef<(p: number) => void>(() => {});
   const wrap = useRef<HTMLDivElement>(null);
   const moved = useRef(false);
@@ -190,10 +198,16 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
       const set = (key: string, attr: string, val: string) => E.get(key)?.setAttribute(attr, val);
       const u = user.current;
       const cam = { ...cameraAt(p) };
+      // the right run-off follows the scripted camera only, so zooming in by hand never changes the pitch itself
+      const mxr = Math.min(MXR, Math.max(16, 16 + (cam.zoom - 0.9) * 50));
       cam.zoom *= u.zoom;
+      cam.fx += u.dfx;
+      cam.fy += u.dfy;
       cam.yaw += u.dyaw;
       cam.tilt = Math.min(90, Math.max(18, cam.tilt + u.dtilt));
       const k = S0 * cam.zoom;
+      // the right run-off only grows as the camera closes in on that goal, so the wide view has no empty turf past it
+
       const tilt = rad(cam.tilt);
       const st = Math.sin(tilt);
       const ct = Math.cos(tilt);
@@ -210,14 +224,17 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
 
       // turf
       // the turf runs past the touchlines (a run-off apron), so the pitch never ends abruptly
-      const corners = [P(-MXL, -MY), P(PW + MXR, -MY), P(PW + MXR, PH + MY), P(-MXL, PH + MY)];
+      const corners = [P(-MXL, -MY), P(PW + mxr, -MY), P(PW + mxr, PH + MY), P(-MXL, PH + MY)];
       set("ground", "points", pts(corners));
       set("sheen", "points", pts(corners));
-      STRIPES.forEach(([a, b], i) => set(`stripe${i}`, "points", pts([P(a, -MY), P(b, -MY), P(b, PH + MY), P(a, PH + MY)])));
+      STRIPES.forEach(([a, b0], i) => {
+        const b = i === STRIPES.length - 1 ? PW + mxr : b0;
+        set(`stripe${i}`, "points", pts([P(a, -MY), P(b, -MY), P(b, PH + MY), P(a, PH + MY)]));
+      });
 
       // slab edges facing the camera
       const NORM = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-      const RECT = [[-MXL, -MY], [PW + MXR, -MY], [PW + MXR, PH + MY], [-MXL, PH + MY]];
+      const RECT = [[-MXL, -MY], [PW + mxr, -MY], [PW + mxr, PH + MY], [-MXL, PH + MY]];
       for (let e = 0; e < 4; e++) {
         const a = RECT[e];
         const b = RECT[(e + 1) % 4];
@@ -269,6 +286,12 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
         const tip = P(it.x + hh * 0.34, it.y + hh * 0.22, 0);
         set(`sh${it.i}`, "d", `M${f(bx)} ${f(by)}L${f(tip[0])} ${f(tip[1])}`);
         set(`sh${it.i}`, "stroke-width", f(Math.max(2, rv * 2 * 0.95)));
+        if (it.goal) {
+          // a football sits on top of every goal column
+          const sc = (rs * 1.6) / 24;
+          set(`gb${it.i}`, "transform", `translate(${f(bx)} ${f(ty - rs * 0.2)}) scale(${sc.toFixed(3)})`);
+          set(`gb${it.i}`, "opacity", tall ? "1" : "0");
+        }
         tp[it.i] = [bx, ty];
         depth.push([it.i, base[2]]);
       }
@@ -346,22 +369,60 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
   useMotionValueEvent(progress, "change", draw);
 
   const redraw = () => drawRef.current(progress.get());
+  // `user` is the camera on screen; `goal` is where the viewer sent it. Each frame it glides part of the way
+  // there, so turning, zooming and the preset views all move smoothly instead of jumping.
+  const goal = useRef({ ...user.current });
+  const raf = useRef(0);
+  const KEYS_U = ["zoom", "ox", "oy", "dyaw", "dtilt", "dfx", "dfy"] as const;
+  const kick = () => {
+    cancelAnimationFrame(raf.current);
+    const step = () => {
+      const u = user.current, g = goal.current;
+      let busy = false;
+      for (const k of KEYS_U) {
+        const d = g[k] - u[k];
+        if (Math.abs(d) > 0.004) { u[k] += d * 0.16; busy = true; } else u[k] = g[k];
+      }
+      redraw();
+      if (busy) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+  };
+  const moveTo = (patch: Partial<typeof goal.current>) => {
+    const g = goal.current;
+    Object.assign(g, patch);
+    g.zoom = Math.min(5, Math.max(Math.min(1, rest.zoom), g.zoom));
+    g.dyaw = Math.max(-85, Math.min(85, g.dyaw));
+    g.dtilt = Math.max(-25, Math.min(55, g.dtilt));
+    setZoomed(Math.abs(g.zoom - rest.zoom) > 0.01 || Math.abs(g.dyaw) > 0.5 || Math.abs(g.dtilt) > 0.5 || Math.abs(g.dfx) > 0.5 || Math.abs(g.ox - rest.ox) > 1);
+    kick();
+  };
   const zoomBy = (factor: number, cx = 0, cy = 0) => {
-    const u = user.current;
-    const z = Math.min(4, Math.max(Math.min(1, rest.zoom), u.zoom * factor));
-    const r = z / u.zoom;
+    const g = goal.current;
+    const z = Math.min(5, Math.max(Math.min(1, rest.zoom), g.zoom * factor));
+    const r = z / g.zoom;
     // keep the point under the cursor (cx, cy: offset from the view centre) fixed while zooming
-    u.ox = (u.ox - cx) * r + cx;
-    u.oy = (u.oy - cy) * r + cy;
-    u.zoom = z;
-    setZoomed(Math.abs(z - rest.zoom) > 0.01 || u.dyaw !== 0 || u.dtilt !== 0);
-    redraw();
+    moveTo({ zoom: z, ox: (g.ox - cx) * r + cx, oy: (g.oy - cy) * r + cy });
   };
-  const reset = () => {
-    user.current = { ...rest, dyaw: 0, dtilt: 0 };
-    setZoomed(false);
-    redraw();
-  };
+  const reset = () => moveTo({ ...rest, dyaw: 0, dtilt: 0, dfx: 0, dfy: 0 });
+
+  // named camera moves for the viewer to jump to
+  useEffect(() => {
+    if (!interactive) return;
+    const base = { ...rest, dyaw: 0, dtilt: 0, dfx: 0, dfy: 0 };
+    onReady?.({
+      preset: (name) => {
+        if (name === "top") moveTo({ ...base, dtilt: 55, dyaw: 0 });
+        else if (name === "left") moveTo({ ...base, dyaw: 48, dtilt: -4 });
+        else if (name === "right") moveTo({ ...base, dyaw: -48, dtilt: -4 });
+        else if (name === "goalR") moveTo({ ...base, zoom: 2.3, dfx: 40, dtilt: 6, dyaw: 22 });
+        else if (name === "goalL") moveTo({ ...base, zoom: 2.3, dfx: -52, dtilt: 6, dyaw: -22 });
+        else reset();
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive]);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
   useEffect(() => {
     const el = wrap.current;
@@ -370,20 +431,22 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
       const r = el.getBoundingClientRect();
       return [((e.clientX - r.left) / r.width - 0.5) * VBW, ((e.clientY - r.top) / r.height - 0.5) * VBH - (CY - VBH / 2)] as const;
     };
-    // pinch / ctrl+wheel zoom only, so ordinary scrolling still scrolls the page
+    // in a full-screen view the wheel zooms; inline it takes Ctrl or a pinch, so ordinary scrolling still scrolls the page
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      if (!wheelZoom && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const [cx, cy] = toView(e);
-      zoomBy(Math.exp(-e.deltaY * 0.012), cx, cy);
+      zoomBy(Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018)), cx, cy);
     };
     const pts = new Map<number, [number, number]>();
     let pinch = 0;
     let pan = false;
+    let vx = 0, vy = 0; // recent turning speed, for a short glide after letting go
     const onDown = (e: PointerEvent) => {
       pts.set(e.pointerId, [e.clientX, e.clientY]);
       pan = e.shiftKey || e.button === 2;
       moved.current = false;
+      vx = vy = 0;
       if (pts.size === 2) pinch = 0;
     };
     const onMove = (e: PointerEvent) => {
@@ -393,25 +456,28 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
       const dy = e.clientY - prev[1];
       pts.set(e.pointerId, [e.clientX, e.clientY]);
       if (Math.abs(dx) + Math.abs(dy) > 0 && !moved.current && Math.hypot(dx, dy) >= 1) moved.current = true;
-      const u = user.current;
+      const g = goal.current;
       const scale = VBW / el.getBoundingClientRect().width;
       if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
         if (pinch) zoomBy(d / pinch, ...toView({ clientX: (a[0] + b[0]) / 2, clientY: (a[1] + b[1]) / 2 }));
         pinch = d;
-      } else if (pan || u.zoom > rest.zoom + 0.01 && e.pointerType === "touch") {
-        u.ox += dx * scale;
-        u.oy += dy * scale;
-        redraw();
+      } else if (pan || (g.zoom > rest.zoom + 0.01 && e.pointerType === "touch")) {
+        moveTo({ ox: g.ox + dx * scale, oy: g.oy + dy * scale });
       } else if (moved.current) {
-        u.dyaw = Math.max(-80, Math.min(80, u.dyaw + dx * 0.4));
-        u.dtilt = Math.max(-25, Math.min(45, u.dtilt - dy * 0.3));
-        setZoomed(true);
-        redraw();
+        vx = vx * 0.6 + dx * 0.4;
+        vy = vy * 0.6 + dy * 0.4;
+        moveTo({ dyaw: g.dyaw + dx * 0.4, dtilt: g.dtilt - dy * 0.3 });
       }
     };
-    const onUp = (e: PointerEvent) => { pts.delete(e.pointerId); pinch = 0; };
+    const onUp = (e: PointerEvent) => {
+      if (pts.delete(e.pointerId) && pts.size === 0 && moved.current && !pan && (Math.abs(vx) > 1.5 || Math.abs(vy) > 1.5)) {
+        const g = goal.current;
+        moveTo({ dyaw: g.dyaw + vx * 5, dtilt: g.dtilt - vy * 3 }); // a short glide on release
+      }
+      pinch = 0;
+    };
     const noMenu = (e: Event) => e.preventDefault();
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("pointerdown", onDown);
@@ -445,7 +511,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
   const nTok = freeze?.freeze_frame.length ?? 0;
 
   return (
-    <div ref={wrap} className={`relative ${className ?? ""}`} style={{ aspectRatio: `${VBW} / ${VBH}`, touchAction: interactive ? "none" : undefined, cursor: interactive ? "grab" : undefined }}>
+    <div ref={wrap} className={`relative ${className ?? ""}`} style={{ aspectRatio: `${VBW} / ${VBH}`, touchAction: interactive ? "none" : undefined, cursor: interactive ? "grab" : undefined, ...(look === "board" ? BOARD : TURF) }}>
       {interactive && (
         <div className="absolute right-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl border border-pitch-800 bg-pitch-900/90 text-ink-0 shadow-md backdrop-blur">
           <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.4)} className="grid h-8 w-8 place-items-center text-lg leading-none hover:bg-pitch-800">+</button>
@@ -465,35 +531,33 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
             <stop offset="0.45" stopColor="#fff" stopOpacity="0" />
             <stop offset="1" stopColor="#000" stopOpacity="0.34" />
           </linearGradient>
-          <filter id="iso-blur" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="3.2" />
-          </filter>
-          <filter id="iso-soft" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="14" />
-          </filter>
+          <radialGradient id="iso-drop" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stopColor="#000" stopOpacity="1" />
+            <stop offset="1" stopColor="#000" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
         {/* ground contact shadow for the whole slab */}
-        <ellipse ref={reg("slabShadow")} cx={CX} cy={CY + 168} rx="400" ry="56" fill="#000" opacity="0.14" filter="url(#iso-soft)" />
+        <ellipse ref={reg("slabShadow")} cx={CX} cy={CY + 168} rx="420" ry="70" fill="url(#iso-drop)" opacity="0.14" />
 
         {[0, 1, 2, 3].map((e) => (
-          <polygon key={e} ref={reg(`side${e}`)} fill="var(--color-grass-side)" stroke="rgba(0,0,0,0.18)" strokeWidth="0.8" strokeLinejoin="round" />
+          <polygon key={e} ref={reg(`side${e}`)} fill="var(--iso-side)" stroke="rgba(0,0,0,0.18)" strokeWidth="0.8" strokeLinejoin="round" />
         ))}
-        <polygon ref={reg("ground")} fill="var(--color-grass-1)" />
-        {STRIPES.map((_, i) => (i % 2 ? <polygon key={i} ref={reg(`stripe${i}`)} fill="var(--color-grass-2)" /> : <polygon key={i} ref={reg(`stripe${i}`)} fill="none" />))}
+        <polygon ref={reg("ground")} fill="var(--iso-ground)" />
+        {STRIPES.map((_, i) => (i % 2 ? <polygon key={i} ref={reg(`stripe${i}`)} fill="var(--iso-stripe)" /> : <polygon key={i} ref={reg(`stripe${i}`)} fill="none" />))}
         <polygon ref={reg("sheen")} fill="url(#iso-sheen)" />
 
-        <g ref={reg("lines")} fill="none" stroke="var(--color-grass-line)" strokeLinecap="round" strokeLinejoin="round" opacity="0.92">
+        <g ref={reg("lines")} fill="none" stroke="var(--iso-line)" strokeLinecap="round" strokeLinejoin="round" opacity="0.92">
           {LINES.map((l) => (
             <path key={l.id} ref={reg(`line-${l.id}`)} />
           ))}
         </g>
 
         <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path ref={reg("netR")} stroke="var(--color-grass-line)" strokeWidth="0.7" opacity="0.4" />
-          <path ref={reg("netL")} stroke="var(--color-grass-line)" strokeWidth="0.7" opacity="0.4" />
-          <path ref={reg("goalR")} stroke="var(--color-grass-line)" strokeWidth="2.4" />
-          <path ref={reg("goalL")} stroke="var(--color-grass-line)" strokeWidth="2.4" />
+          <path ref={reg("netR")} stroke="var(--iso-line)" strokeWidth="0.7" opacity="0.4" />
+          <path ref={reg("netL")} stroke="var(--iso-line)" strokeWidth="0.7" opacity="0.4" />
+          <path ref={reg("goalR")} stroke="var(--iso-line)" strokeWidth="2.4" />
+          <path ref={reg("goalL")} stroke="var(--iso-line)" strokeWidth="2.4" />
         </g>
 
         {geo && (
@@ -503,7 +567,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
           </g>
         )}
 
-        <g ref={reg("shGroup")} filter="url(#iso-blur)" opacity="0.32" fill="none" stroke="#04101f" strokeLinecap="round">
+        <g ref={reg("shGroup")} opacity="0.32" fill="none" stroke="#04101f" strokeLinecap="round">
           {items.map((it) => (
             <path key={it.i} ref={reg(`sh${it.i}`)} />
           ))}
@@ -522,7 +586,8 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
               <path ref={reg(`cb${it.i}`)} fill={teamVar(it.team)} />
               <path ref={reg(`cs${it.i}`)} fill="url(#iso-shade)" />
               {hover?.i === it.i && <ellipse ref={reg(`cr${it.i}`)} fill="none" stroke="var(--color-ink-0)" strokeWidth="2" />}
-              <ellipse ref={reg(`ct${it.i}`)} fill={teamVar(it.team)} stroke={it.goal ? "#fff" : "rgba(255,255,255,0.35)"} strokeWidth={it.goal ? 2.2 : 0.8} />
+              <ellipse ref={reg(`ct${it.i}`)} fill={teamVar(it.team)} stroke="rgba(255,255,255,0.35)" strokeWidth={0.8} />
+              {it.goal && <g ref={reg(`gb${it.i}`)} opacity="0"><BallIcon x={-12} y={-12} width={24} height={24} /></g>}
             </g>
           ))}
         </g>
@@ -570,7 +635,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
         >
           {hover && (
             <>
-              <div className="font-semibold text-ink-0">{hover.shot.player_name ?? "Unknown"}</div>
+              <div className="font-semibold text-ink-0">{displayName(hover.shot.player_name, hover.shot.display_name)}</div>
               <div className="text-ink-1">
                 {hover.shot.team_name} · {hover.shot.minute}′ · {hover.shot.outcome_name}
               </div>
@@ -585,5 +650,16 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
     </div>
   );
 }
+
+const TURF = {
+  "--iso-ground": "var(--color-grass-1)", "--iso-stripe": "var(--color-grass-2)", "--iso-side": "var(--color-grass-side)", "--iso-line": "var(--color-grass-line)",
+} as React.CSSProperties;
+// the board look: the slab is a card in the site's own surface colours, marked out in the brand indigo
+const BOARD = {
+  "--iso-ground": "color-mix(in oklab, var(--color-pitch-900) 38%, transparent)",
+  "--iso-stripe": "color-mix(in oklab, var(--color-marker) 8%, transparent)",
+  "--iso-side": "color-mix(in oklab, var(--color-marker) 26%, transparent)",
+  "--iso-line": "color-mix(in oklab, var(--color-marker) 70%, var(--color-ink-1))",
+} as React.CSSProperties;
 
 const smoothTok = (t: number) => smooth(clamp01(t));
