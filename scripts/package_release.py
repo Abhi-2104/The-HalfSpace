@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bundle everything the server needs that is NOT in git into one archive:
   data/halfspace.db, data/derived.db, data/models/, data/derived/shots.pkl + matches.pkl, frontend/dist/
-Upload it to the server and unpack it into the app folder (see docs/DEPLOY_ORACLE.md). Never includes the raw cache, the big
+Upload it to the server and unpack it into the app folder. Never includes the raw cache, the big
 local tables, or data/restricted.db (Impect, restricted terms).
 
   python3 scripts/package_release.py              # build the frontend first: cd frontend && VITE_API_BASE=/api npm run build
@@ -51,7 +51,7 @@ def main() -> None:
             tar.add(ROOT / f, arcname=f)
             print("added", f)
     print(f"\n{out}  ({out.stat().st_size / 1e9:.2f} GB)")
-    print("upload:  scp -i <your-key> " + str(out) + " ubuntu@<server-ip>:/tmp/   then unpack as described in docs/DEPLOY_ORACLE.md")
+    print("upload:  scp -i <your-key> " + str(out) + " ubuntu@<server-ip>:/tmp/   then unpack it inside /opt/halfspace on the server")
 
 
 if __name__ == "__main__":

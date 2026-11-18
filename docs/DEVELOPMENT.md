@@ -1,6 +1,6 @@
 # Development guide
 
-Setup, data loading, layout, test notes and known limitations. For the project overview, see the [README](../README.md). For planned models and AI work, see the [roadmap](ROADMAP.md).
+Setup, data loading, layout, test notes and known limitations. For the project overview, see the [README](../README.md).
 
 ## Setup
 
@@ -118,8 +118,6 @@ Agent evaluation against the real model (uses free-tier quota; stops cleanly on 
 ```bash
 .venv/bin/python3 scripts/eval_agent.py            # 10 golden questions in tests/agent_eval.json
 ```
-
-See [HOSTING.md](HOSTING.md) for hosting, the admin portal and the data sources' terms.
 
 ## Agent API
 

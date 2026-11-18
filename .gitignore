@@ -18,3 +18,7 @@ data/derived/
 data/eval/
 data/admin/
 release/
+
+# local-only notes and design explorations: never pushed
+docs/local/
+design/
