@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLenis } from "lenis/react";
 import { displayName } from "../lib/names";
 import { Link } from "react-router-dom";
-import { animate, motion, useMotionValue, useScroll, useTransform, type MotionValue } from "framer-motion";
+import { animate, motion, useMotionValue, useMotionValueEvent, useScroll, useTransform, type MotionValue } from "framer-motion";
 import { api, type DataCoverage, type FreezeFrame, type MatchDetailInfo, type Overview, type PassNetwork, type PlayerProfile, type ShotXg, type TeamProfile, type TacticalConceptSummary } from "../lib/api";
 import { Pitch } from "../components/pitch/Pitch";
 import { FreezeFrameLayer } from "../components/pitch/FreezeFrameLayer";
 import { PassNetworkLayer } from "../components/pitch/PassNetworkLayer";
-import { IsoPitch } from "../components/iso/IsoPitch";
+import { IsoPitch, REST } from "../components/iso/IsoPitch";
 import { Reveal } from "../components/Reveal";
 import { CountUp } from "../components/CountUp";
 import { CoverageStrip } from "../components/CoverageStrip";
@@ -28,8 +29,6 @@ interface Featured {
 
 const ord = (n: number) => `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10 > 3 ? 0 : n % 10]}`;
 // caption by team, never by a guessed short name (StatsBomb full names put the surname anywhere)
-const kind = (s: ShotXg) => (s.outcome_name === "Goal" ? "goal" : `shot (${s.outcome_name ?? "unknown"})`);
-const describe = (s: ShotXg) => `${s.team_name}'s ${ord(s.minute)}-minute ${kind(s)}`;
 const xgText = (s: ShotXg) => (s.xg ?? 0).toFixed(2);
 
 async function shotsFor(id: number) {
@@ -133,8 +132,10 @@ function Hero({ overview, featured, settled }: { overview: Overview | null; feat
   const p = useMotionValue(0);
   useEffect(() => {
     if (!featured) return;
-    if (reduced()) { p.set(0.42); return; }
-    const c = animate(p, 0.42, { duration: 2.8, delay: 0.35, ease: EASE });
+    if (reduced()) { p.set(REST); return; }
+    // one long ease from the flat map to the settled 3D view, with no stop-start on the way
+    p.set(0.05);
+    const c = animate(p, REST, { duration: 3.8, delay: 0.25, ease: [0.5, 0, 0.15, 1] });
     return () => c.stop();
   }, [featured, p]);
   const m = featured?.match;
@@ -195,7 +196,9 @@ function Hero({ overview, featured, settled }: { overview: Overview | null; feat
       <div className="relative max-md:-mx-6">
         {featured && m ? (
           <>
-            <IsoPitch shots={featured.shots} homeTeamId={m.home_team_id} progress={p} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.1, ease: "easeOut" }}>
+              <IsoPitch shots={featured.shots} homeTeamId={m.home_team_id} progress={p} home={{ ox: -28 }} />
+            </motion.div>
             <Legend home={m.home_team} away={m.away_team} />
             <p className="mt-1 px-6 text-xs text-ink-2 md:px-0">
               {m.competition_name} {m.season_name}: {m.home_team} {m.home_score}–{m.away_score} {m.away_team}. Every column is a real shot.
@@ -211,18 +214,19 @@ function Hero({ overview, featured, settled }: { overview: Overview | null; feat
 
 /* ---------- Pinned scroll story ---------- */
 /** A chapter of the story. It rises in at `from`, drifts across the screen while it is on, and fades out at `to`. */
-function Caption({ progress, from, to, n, title, body, pos, drift, last = false }: {
-  progress: MotionValue<number>; from: number; to: number; n: number; title: string; body: string; pos: string; drift: [number, number]; last?: boolean;
+function Caption({ progress, from, to, n, total, title, body, pos, drift, last = false }: {
+  progress: MotionValue<number>; from: number; to: number; n: number; total: number; title: string; body: string; pos: string; drift: [number, number]; last?: boolean;
 }) {
   const fade = 0.05;
-  const opacity = useTransform(progress, [from, from + fade, to - fade, to], [0, 1, 1, last ? 1 : 0]);
+  // the first chapter is already on screen when the story arrives, so there is no empty moment
+  const opacity = useTransform(progress, [from, from + fade, to - fade, to], [from === 0 ? 1 : 0, 1, 1, last ? 1 : 0]);
   const y = useTransform(progress, [from, to], [drift[1] + 40, drift[1] - 40]);
   const x = useTransform(progress, [from, to], [-drift[0], drift[0]]);
   return (
     <motion.div style={{ opacity, x, y }} className={`pointer-events-none absolute z-10 max-w-[20rem] sm:max-w-[27rem] ${pos}`}>
       {/* a soft wash of the page colour keeps the words readable over the pitch, with no box around them */}
-      <div className="absolute -inset-x-10 -inset-y-8 -z-10" aria-hidden style={{ background: "radial-gradient(closest-side, color-mix(in oklab, var(--color-pitch-950) 88%, transparent), transparent)" }} />
-      <div className="font-mono text-xs tracking-[0.2em] text-marker-bright">0{n} <span className="text-ink-2">/ 04</span></div>
+      <div className="absolute -inset-x-14 -inset-y-12 -z-10" aria-hidden style={{ background: "radial-gradient(closest-side, color-mix(in oklab, var(--color-pitch-950) 94%, transparent), transparent)" }} />
+      <div className="font-mono text-xs tracking-[0.2em] text-marker-bright">0{n} <span className="text-ink-2">/ 0{total}</span></div>
       <h2 className="mt-2 font-display text-3xl font-extrabold leading-[1.04] tracking-[-0.035em] text-ink-0 sm:text-[2.75rem]">{title}</h2>
       <p className="mt-4 text-base leading-relaxed text-ink-1 sm:text-lg">{body}</p>
     </motion.div>
@@ -232,8 +236,8 @@ function Caption({ progress, from, to, n, title, body, pos, drift, last = false 
 /** One big number that belongs to the current chapter. */
 function Stat({ progress, from, to, value, label, last = false }: { progress: MotionValue<number>; from: number; to: number; value: string; label: string; last?: boolean }) {
   const fade = 0.05;
-  const opacity = useTransform(progress, [from, from + fade, to - fade, to], [0, 1, 1, last ? 1 : 0]);
-  const y = useTransform(progress, [from, from + fade, to - fade, to], [24, 0, 0, last ? 0 : -24]);
+  const opacity = useTransform(progress, [from, from + fade, to - fade, to], [from === 0 ? 1 : 0, 1, 1, last ? 1 : 0]);
+  const y = useTransform(progress, [from, from + fade, to - fade, to], [from === 0 ? 0 : 24, 0, 0, last ? 0 : -24]);
   return (
     <motion.div style={{ opacity, y }} className="absolute bottom-0 right-0 text-right">
       <div className="font-display text-6xl font-extrabold leading-none tracking-[-0.04em] text-ink-0 sm:text-8xl">{value}</div>
@@ -242,19 +246,32 @@ function Stat({ progress, from, to, value, label, last = false }: { progress: Mo
   );
 }
 
-function Dot({ progress, from, to, last = false }: { progress: MotionValue<number>; from: number; to: number; last?: boolean }) {
+function Dot({ progress, from, to, last = false, label, onGo }: { progress: MotionValue<number>; from: number; to: number; last?: boolean; label: string; onGo: () => void }) {
   const a = Math.max(0, from - 0.02);
   const scale = useTransform(progress, [a, from + 0.02, to - 0.02, to], [1, 1.9, 1.9, last ? 1.9 : 1]);
   const fill = useTransform(progress, [a, from + 0.02], [0.28, 1]);
-  return <motion.i style={{ scale, opacity: fill }} className="block h-2 w-2 rounded-full bg-marker" />;
+  return (
+    <button type="button" onClick={onGo} aria-label={label} title={label} className="pointer-events-auto group grid h-6 w-6 place-items-center rounded-full">
+      <motion.i style={{ scale, opacity: fill }} className="block h-2 w-2 rounded-full bg-marker transition-shadow group-hover:shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-marker)_25%,transparent)]" />
+    </button>
+  );
 }
 
-const STEPS: Array<[number, number]> = [[0, 0.2], [0.2, 0.44], [0.44, 0.68], [0.68, 1]];
+const STEPS: Array<[number, number]> = [[0, 0.16], [0.16, 0.34], [0.34, 0.54], [0.54, 0.76], [0.76, 1]];
+const CHAPTERS = STEPS.length;
 
 function Story({ featured, settled }: { featured: Featured | null; settled: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const lenis = useLenis();
+  const { scrollYProgress: rawProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  // a plain mirror of the scroll position: values derived straight from the scroll timeline can lag behind when the page jumps (chapter dots)
+  const scrollYProgress = useMotionValue(0);
+  useMotionValueEvent(rawProgress, "change", (v) => scrollYProgress.set(v));
   const bar = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  // the whole stage fades in as it arrives, so the page flows into it instead of cutting to it
+  // set by hand rather than with useTransform: a short range at the very start of the scroll is mis-mapped by the browser's scroll-timeline path
+  const hint = useMotionValue(1);
+  useMotionValueEvent(scrollYProgress, "change", (v) => { hint.set(Math.max(0, 1 - v / 0.03)); });
   // the backdrop moves with the camera: two soft glows drift across, and the dot grid slides under the pitch
   const g1x = useTransform(scrollYProgress, [0, 1], ["12%", "88%"]);
   const g2x = useTransform(scrollYProgress, [0, 1], ["95%", "10%"]);
@@ -264,60 +281,85 @@ function Story({ featured, settled }: { featured: Featured | null; settled: bool
   const m = featured?.match;
 
   const facts = useMemo(() => {
-    if (!featured) return null;
-    const best = [...featured.shots].filter((s) => s.xg != null).sort((a, b) => (b.xg ?? 0) - (a.xg ?? 0))[0] ?? null;
-    const goals = featured.shots.filter((s) => s.outcome_name === "Goal").length;
-    return { best, total: featured.shots.length, goals };
-  }, [featured]);
+    if (!featured || !m) return null;
+    const shots = featured.shots;
+    const best = [...shots].filter((s) => s.xg != null).sort((a, b) => (b.xg ?? 0) - (a.xg ?? 0))[0] ?? null;
+    const sum = (home: boolean) => shots.filter((s) => (s.team_id === m.home_team_id) === home).reduce((n, s) => n + (s.xg ?? 0), 0);
+    return { best, total: shots.length, goals: shots.filter((s) => s.outcome_name === "Goal").length, xgHome: sum(true), xgAway: sum(false) };
+  }, [featured, m]);
+  // jump to a chapter: the page scrolls there smoothly, so the camera plays forward or backward to that view
+  const goTo = (i: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const [a, b] = STEPS[i];
+    const target = i === 0 ? 0.01 : i === CHAPTERS - 1 ? a + (b - a) * 0.7 : a + (b - a) * 0.45;
+    const y = el.getBoundingClientRect().top + window.scrollY + (el.offsetHeight - window.innerHeight) * target;
+    const dist = Math.abs(y - window.scrollY);
+    // a slow start and a slow landing (ease in-out), longer for longer trips; input is locked so a stray wheel tick can't fight it
+    const ease = (t: number) => t * t * t * (t * (6 * t - 15) + 10); // smootherstep: gentle at both ends, peak speed under 2x the average
+    if (lenis) lenis.scrollTo(y, { duration: Math.min(6, 1.8 + dist / 1100), easing: ease, lock: true, force: true });
+    else window.scrollTo({ top: y, behavior: "smooth" });
+  };
   const focus = featured?.focus ?? null;
   const visible = featured?.freeze?.freeze_frame.length ?? 0;
+  const who = (s: ShotXg) => `${displayName(s.player_name, s.display_name)} (${s.team_name}), ${ord(s.minute)} minute`;
+
+  const chapters: Array<{ title: string; body: string; pos: string; drift: [number, number] }> = [
+    { title: "The shape of a match",
+      body: m && facts ? `Every shot from ${m.home_team} v ${m.away_team}, plotted where it was taken. ${facts.total} attempts in all.` : "Every shot of a match, plotted where it was taken.",
+      pos: "left-5 top-24 sm:left-[5%] sm:top-[24%]", drift: [24, 10] },
+    { title: "Chance quality, made visible",
+      body: m ? `Column height is expected goals (xG): how likely a shot like that is to score. ${m.home_team} are shown in blue and ${m.away_team} in orange.` : "Column height is expected goals (xG): how likely a shot like that is to score.",
+      pos: "left-5 bottom-28 sm:left-[5%] sm:bottom-[16%]", drift: [36, -14] },
+    { title: "Who created more",
+      body: m && facts ? `Added up, ${facts.xgHome >= facts.xgAway ? m.home_team : m.away_team} created the better chances, and the final score was ${m.home_score}–${m.away_score}. xG measures chance quality, not the result.` : "Added up, xG shows who created the better chances.",
+      pos: "left-5 top-24 sm:left-[5%] sm:top-[18%]", drift: [30, 14] },
+    { title: "The decisive moment",
+      body: facts?.best ? `${who(facts.best)}. At ${xgText(facts.best)} xG, it was the best chance of the match.` : "The tallest column marks the best chance of the match.",
+      pos: "left-5 bottom-28 sm:left-[5%] sm:bottom-[20%]", drift: [26, -12] },
+    { title: "Every player, at the instant of the shot",
+      body: focus ? `${who(focus)}, rated ${xgText(focus)} xG. Positions come from 360 data: the ${visible || "visible"} players in view, with the distance and angle to goal.` : "With 360 data, every shot shows where each visible player stood.",
+      pos: "left-5 top-24 sm:left-[5%] sm:top-[20%]", drift: [20, 10] },
+  ];
 
   return (
-    <section ref={ref} className="relative h-[640vh]" aria-label="How to read a match">
+    <section ref={ref} className="relative h-[720vh]" aria-label="How to read a match">
       <div className="sticky top-0 h-screen overflow-hidden">
         <motion.div className="absolute inset-x-0 -top-40 bottom-[-9rem] opacity-70" aria-hidden style={{ y: grid, backgroundImage: "radial-gradient(var(--color-pitch-700) 1px, transparent 1px)", backgroundSize: "30px 30px", maskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, #000 25%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 80% 70% at 50% 50%, #000 25%, transparent 100%)" }} />
         <motion.div className="absolute inset-0" style={{ backgroundImage: glow }} aria-hidden />
 
-        {/* the pitch fills the screen and fades into the backdrop at its edges, so it has no hard border */}
-        <div className="absolute inset-0 flex items-center justify-center pt-10" style={{ maskImage: "radial-gradient(ellipse 62% 66% at 50% 52%, #000 45%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 62% 66% at 50% 52%, #000 45%, transparent 100%)" }}>
+        {/* the pitch fills the screen and fades into the backdrop on every side, so it has no border */}
+        <div className="absolute inset-0 flex items-center justify-center pt-10" style={{ maskImage: "radial-gradient(ellipse 58% 62% at 50% 52%, #000 35%, transparent 100%)", WebkitMaskImage: "radial-gradient(ellipse 58% 62% at 50% 52%, #000 35%, transparent 100%)" }}>
           <div className="w-[min(118vw,calc(100vh*1.8))] shrink-0">
             {featured && m ? <IsoPitch look="board" shots={featured.shots} homeTeamId={m.home_team_id} progress={scrollYProgress} freeze={featured.freeze} /> : <PitchPlaceholder settled={settled} />}
           </div>
         </div>
 
-        <Caption progress={scrollYProgress} from={STEPS[0][0]} to={STEPS[0][1]} n={1} pos="left-5 top-24 sm:left-[5%] sm:top-[24%]" drift={[24, 10]}
-          title="Every shot of a match, on one map"
-          body={m && facts ? `${m.home_team} v ${m.away_team} had ${facts.total} shots. Each dot is a real one, placed where it was taken.` : "Each dot is a real shot, placed where it was taken."} />
-        <Caption progress={scrollYProgress} from={STEPS[1][0]} to={STEPS[1][1]} n={2} pos="left-5 bottom-28 sm:left-[5%] sm:bottom-[16%]" drift={[36, -14]}
-          title="Height shows chance quality"
-          body={m ? `Taller means a better chance, rated by our xG model. Blue is ${m.home_team}, orange is ${m.away_team}.` : "Taller means a better chance, rated by our xG model."} />
-        <Caption progress={scrollYProgress} from={STEPS[2][0]} to={STEPS[2][1]} n={3} pos="left-5 top-24 sm:left-[5%] sm:top-[16%]" drift={[30, 16]}
-          title={facts?.best ? `${describe(facts.best)} stands out` : "One chance stands out"}
-          body={facts?.best ? `Rated ${xgText(facts.best)} xG, the best chance of the match. The tall column is easy to spot.` : "The tallest column was the best chance."} />
-        <Caption progress={scrollYProgress} from={STEPS[3][0]} to={STEPS[3][1]} n={4} last pos="left-5 bottom-28 sm:left-[5%] sm:bottom-[22%]" drift={[24, -10]}
-          title="See where every player stood"
-          body={focus ? `${describe(focus)}, rated ${xgText(focus)} xG. These are the players the cameras could see at that instant.` : "Every shot with 360 data shows where each visible player stood."} />
+        {chapters.map((c, i) => (
+          <Caption key={i} progress={scrollYProgress} from={STEPS[i][0]} to={STEPS[i][1]} n={i + 1} total={CHAPTERS} last={i === CHAPTERS - 1} pos={c.pos} drift={c.drift} title={c.title} body={c.body} />
+        ))}
 
-        {/* a big number for each chapter */}
+        {/* one number for each chapter */}
         {facts && (
-          <div className="pointer-events-none absolute bottom-28 right-6 h-28 w-64 sm:bottom-24 sm:right-[5%]" aria-hidden>
-            <Stat progress={scrollYProgress} from={STEPS[0][0]} to={STEPS[0][1]} value={String(facts.total)} label="shots on the map" />
+          <div className="pointer-events-none absolute bottom-28 right-6 h-32 w-72 sm:bottom-24 sm:right-[5%]" aria-hidden>
+            <Stat progress={scrollYProgress} from={STEPS[0][0]} to={STEPS[0][1]} value={String(facts.total)} label="shots plotted" />
             <Stat progress={scrollYProgress} from={STEPS[1][0]} to={STEPS[1][1]} value={String(facts.goals)} label={facts.goals === 1 ? "goal scored" : "goals scored"} />
-            <Stat progress={scrollYProgress} from={STEPS[2][0]} to={STEPS[2][1]} value={facts.best ? xgText(facts.best) : "–"} label="xG, the best chance" />
-            {visible > 0 && <Stat progress={scrollYProgress} from={STEPS[3][0]} to={STEPS[3][1]} last value={String(visible)} label="players in the frame" />}
+            {m && <Stat progress={scrollYProgress} from={STEPS[2][0]} to={STEPS[2][1]} value={`${facts.xgHome.toFixed(1)} – ${facts.xgAway.toFixed(1)}`} label={`xG, ${m.home_team} – ${m.away_team}`} />}
+            <Stat progress={scrollYProgress} from={STEPS[3][0]} to={STEPS[3][1]} value={facts.best ? xgText(facts.best) : "–"} label="xG, the best chance" />
+            {visible > 0 && <Stat progress={scrollYProgress} from={STEPS[4][0]} to={STEPS[4][1]} last value={String(visible)} label="players in view" />}
           </div>
         )}
 
         {/* where you are in the story */}
-        <div className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 flex-col items-center gap-4 sm:flex" aria-hidden>
-          {STEPS.map(([a, b], i) => <Dot key={i} progress={scrollYProgress} from={a} to={b} last={i === 3} />)}
-        </div>
+        <nav className="absolute right-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 sm:flex" aria-label="Story chapters">
+          {STEPS.map(([a, b], i) => <Dot key={i} progress={scrollYProgress} from={a} to={b} last={i === CHAPTERS - 1} label={`Chapter ${i + 1}: ${chapters[i].title}`} onGo={() => goTo(i)} />)}
+        </nav>
 
         <div className="absolute bottom-6 left-1/2 hidden w-56 -translate-x-1/2 sm:block" aria-hidden>
           <div className="h-1 overflow-hidden rounded-full bg-pitch-800">
             <motion.div className="h-full rounded-full bg-marker" style={{ width: bar }} />
           </div>
-          <p className="mt-2 text-center text-xs text-ink-2">Keep scrolling</p>
+          <motion.p style={{ opacity: hint }} className="mt-2 text-center text-xs text-ink-2">Scroll to explore</motion.p>
         </div>
       </div>
     </section>

@@ -11,6 +11,7 @@ const LINKS = [
   ["/teams", "Teams"],
   ["/tactics", "Tactics"],
   ["/compare", "Compare"],
+  ["/fixtures", "Fixtures"],
   ["/ask", "Ask"],
 ] as const;
 
@@ -83,7 +84,7 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2.5">
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <ModeSwitch />
           </div>
           <ThemeToggle />
@@ -122,7 +123,7 @@ export function Nav() {
                   {label}
                 </NavLink>
               ))}
-              <div className="flex items-center gap-3 border-t border-pitch-800 py-3">
+              <div className="flex items-center gap-3 border-t border-pitch-800 py-3 xl:hidden">
                 <span className="text-sm text-ink-1">Detail level</span>
                 <ModeSwitch />
               </div>

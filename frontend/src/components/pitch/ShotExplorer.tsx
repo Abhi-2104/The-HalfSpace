@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { api, type ShotXg, type FreezeFrame } from "../../lib/api";
-import { IsoPitch } from "../iso/IsoPitch";
+import { IsoPitch, REST } from "../iso/IsoPitch";
 import { Pitch } from "./Pitch";
 import { ShotMapLayer } from "./ShotMapLayer";
 import { FreezeFrameLayer } from "./FreezeFrameLayer";
@@ -32,7 +32,7 @@ export function ShotExplorer({ matchId, homeTeamId, homeTeam, awayTeam }: {
   const [loadingFrame, setLoadingFrame] = useState(false);
   const [view, setView] = useState<"map" | "3d">("map");
   const [expanded, setExpanded] = useState(false);
-  const isoProgress = useMotionValue(0.42); // the settled isometric camera, framed to fit the whole pitch
+  const isoProgress = useMotionValue(REST); // the settled isometric camera, framed to fit the whole pitch
 
   useEffect(() => {
     api.shotsXg(matchId).then((r) => setShots(r.shots)).catch(() => setShots([]));

@@ -21,6 +21,7 @@ export function Footer() {
               ["/tactics", "Tactics"],
               ["/compare", "Compare"],
               ["/ask", "Ask"],
+              ["/tracking", "Tracking"],
               ["/how-it-works", "How this works"],
             ].map(([to, label]) => (
               <li key={to}>

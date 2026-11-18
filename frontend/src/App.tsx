@@ -19,6 +19,9 @@ import { TacticDetail } from "./pages/TacticDetail";
 import { Compare } from "./pages/Compare";
 import { Ask } from "./pages/Ask";
 import { HowItWorks } from "./pages/HowItWorks";
+import { Fixtures } from "./pages/Fixtures";
+import { Tracking } from "./pages/Tracking";
+import { Admin } from "./pages/Admin";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -36,6 +39,9 @@ function AnimatedRoutes() {
         <Route path="/tactics/:slug" element={<PageTransition><TacticDetail /></PageTransition>} />
         <Route path="/compare" element={<PageTransition><Compare /></PageTransition>} />
         <Route path="/how-it-works" element={<PageTransition><HowItWorks /></PageTransition>} />
+        <Route path="/fixtures" element={<PageTransition><Fixtures /></PageTransition>} />
+        <Route path="/tracking" element={<PageTransition><Tracking /></PageTransition>} />
+        <Route path="/admin" element={<PageTransition><Admin /></PageTransition>} />
         <Route path="/ask" element={<PageTransition><Ask /></PageTransition>} />
       </Routes>
     </AnimatePresence>

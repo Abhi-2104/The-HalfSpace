@@ -44,45 +44,58 @@ export interface Cam {
   tokens: number; // 0..1 freeze-frame players
 }
 
+/** The settled isometric view that shows the whole pitch: where the hero and the shot explorer rest. */
+export const REST = 0.34;
+
 const KEYS: Array<[number, Cam]> = [
   [0.0, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
-  [0.1, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
+  [0.025, { tilt: 90, yaw: 0, rise: 0, zoom: 1, fx: 60, fy: 40, tokens: 0 }],
   // the map tips over and swings round as the columns rise
-  [0.24, { tilt: 50, yaw: -62, rise: 0.75, zoom: 0.9, fx: 62, fy: 40, tokens: 0 }],
+  [0.2, { tilt: 50, yaw: -62, rise: 0.75, zoom: 0.9, fx: 62, fy: 40, tokens: 0 }],
   // settles on the isometric view that fits the whole slab (zoom 0.86 about the middle of the turf)
-  [0.38, { tilt: 41, yaw: -30, rise: 1, zoom: 0.86, fx: 70, fy: 40, tokens: 0 }],
-  // low skim over the left half, then a swing to the far side, then back over the right
-  [0.5, { tilt: 30, yaw: 34, rise: 1, zoom: 1.22, fx: 34, fy: 40, tokens: 0 }],
-  [0.62, { tilt: 36, yaw: 58, rise: 1, zoom: 1.12, fx: 78, fy: 34, tokens: 0 }],
-  [0.74, { tilt: 44, yaw: -18, rise: 0.8, zoom: 1.35, fx: 92, fy: 40, tokens: 0 }],
-  [0.88, { tilt: 52, yaw: -6, rise: 0.25, zoom: 1.75, fx: 101, fy: 40, tokens: 0.3 }],
+  [REST, { tilt: 41, yaw: -30, rise: 1, zoom: 0.86, fx: 70, fy: 40, tokens: 0 }],
+  // low skim over the left half, then a swing to the far side, then in towards the goal
+  [0.46, { tilt: 30, yaw: 34, rise: 1, zoom: 1.22, fx: 34, fy: 40, tokens: 0 }],
+  [0.58, { tilt: 36, yaw: 58, rise: 1, zoom: 1.12, fx: 78, fy: 34, tokens: 0 }],
+  [0.7, { tilt: 44, yaw: -18, rise: 0.85, zoom: 1.35, fx: 92, fy: 40, tokens: 0 }],
+  // down into the area: the columns sink away and the players stand up, then the view holds
+  [0.8, { tilt: 50, yaw: -8, rise: 0.3, zoom: 1.7, fx: 100, fy: 40, tokens: 0.45 }],
+  [0.88, { tilt: 54, yaw: 0, rise: 0, zoom: 1.9, fx: 102, fy: 40, tokens: 1 }],
   [1.0, { tilt: 54, yaw: 0, rise: 0, zoom: 1.9, fx: 102, fy: 40, tokens: 1 }],
 ];
 
-const smooth = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rad = (d: number) => (d * Math.PI) / 180;
+const smooth = (t: number) => t * t * (3 - 2 * t);
+
+/** Monotone cubic (PCHIP) tangents for one camera channel: smooth through every key with no overshoot and no stop-start at the keys. */
+function tangents(ps: number[], vs: number[]) {
+  const n = ps.length;
+  const h = ps.slice(1).map((p, i) => p - ps[i]);
+  const d = vs.slice(1).map((v, i) => (v - vs[i]) / h[i]);
+  const m = new Array<number>(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i - 1] * d[i] <= 0) continue;
+    const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+    m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  }
+  return m;
+}
+const CHANNELS = ["tilt", "yaw", "rise", "zoom", "fx", "fy", "tokens"] as const;
+const PS = KEYS.map(([p]) => p);
+const TAN = Object.fromEntries(CHANNELS.map((c) => [c, tangents(PS, KEYS.map(([, k]) => k[c]))])) as Record<(typeof CHANNELS)[number], number[]>;
 
 export function cameraAt(p: number): Cam {
   const x = clamp01(p);
-  for (let i = 1; i < KEYS.length; i++) {
-    const [p1, c1] = KEYS[i];
-    if (x <= p1) {
-      const [p0, c0] = KEYS[i - 1];
-      const t = smooth(clamp01((x - p0) / (p1 - p0 || 1)));
-      return {
-        tilt: lerp(c0.tilt, c1.tilt, t),
-        yaw: lerp(c0.yaw, c1.yaw, t),
-        rise: lerp(c0.rise, c1.rise, t),
-        zoom: lerp(c0.zoom, c1.zoom, t),
-        fx: lerp(c0.fx, c1.fx, t),
-        fy: lerp(c0.fy, c1.fy, t),
-        tokens: lerp(c0.tokens, c1.tokens, t),
-      };
-    }
-  }
-  return KEYS[KEYS.length - 1][1];
+  let i = 1;
+  while (i < KEYS.length - 1 && x > PS[i]) i++;
+  const p0 = PS[i - 1], p1 = PS[i], h = p1 - p0;
+  const t = clamp01((x - p0) / h);
+  const t2 = t * t, t3 = t2 * t;
+  const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+  const out = {} as Record<(typeof CHANNELS)[number], number>;
+  for (const c of CHANNELS) out[c] = h00 * KEYS[i - 1][1][c] + h10 * h * TAN[c][i - 1] + h01 * KEYS[i][1][c] + h11 * h * TAN[c][i];
+  return out as Cam;
 }
 
 const f = (n: number) => n.toFixed(1);
@@ -339,7 +352,7 @@ export function IsoPitch({ shots, homeTeamId, progress, freeze, onSelect, intera
             const ly = (a[1] + mid[1]) / 2 - 18;
             lab.style.left = `${(lx / VBW) * 100}%`;
             lab.style.top = `${(ly / VBH) * 100}%`;
-            lab.style.opacity = f(clamp01((cam.tokens - 0.55) / 0.35));
+            lab.style.opacity = f(clamp01((cam.tokens - 0.25) / 0.35));
           }
         }
       }
@@ -656,9 +669,9 @@ const TURF = {
 } as React.CSSProperties;
 // the board look: the slab is a card in the site's own surface colours, marked out in the brand indigo
 const BOARD = {
-  "--iso-ground": "color-mix(in oklab, var(--color-pitch-900) 38%, transparent)",
-  "--iso-stripe": "color-mix(in oklab, var(--color-marker) 8%, transparent)",
-  "--iso-side": "color-mix(in oklab, var(--color-marker) 26%, transparent)",
+  "--iso-ground": "color-mix(in oklab, var(--color-pitch-900) 16%, transparent)",
+  "--iso-stripe": "color-mix(in oklab, var(--color-marker) 5%, transparent)",
+  "--iso-side": "color-mix(in oklab, var(--color-marker) 16%, transparent)",
   "--iso-line": "color-mix(in oklab, var(--color-marker) 70%, var(--color-ink-1))",
 } as React.CSSProperties;
 

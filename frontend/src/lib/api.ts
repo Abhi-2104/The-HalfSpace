@@ -27,6 +27,7 @@ export interface AskAnswer {
   text: string;
   provenance: { tool: string; arguments: Record<string, unknown> }[];
   unresolved_caveats: string[];
+  suggestions?: string[];
 }
 
 export interface Overview {
@@ -257,7 +258,42 @@ export interface PatternRanking {
 export interface ModelCard { id: string; name: string; limits: string; [k: string]: unknown }
 export interface MatchHit { id: number; match_date: string; home_score: number; away_score: number; home_team: string; away_team: string; competition_id: number; season_id: number }
 
+export interface FixtureComp { competition_code: string; competition: string; season: string; source: string; n: number; finished: number; updated_at: string }
+export interface Fixture { match_id: string; matchday: string | null; kickoff: string; status: string; home: string; away: string; home_score: number | null; away_score: number | null }
+export interface StandingRow { position: number; team: string; played: number; won: number; drawn: number; lost: number; goals_for: number; goals_against: number; goal_diff: number; points: number }
+export interface PitchControl { teams: { team: string; is_home: boolean; control_share: number; control_share_attacking_third: number; grid: number[][] }[]; note: string }
+export interface PhysicalRow { match_id?: string; player: string; display_name?: string | null; team: string; position: string | null; tracked_min: number; detected_share: number; distance_per_tracked_min: number; hsr_m: number; sprint_m: number; sprints: number; top_speed_kmh: number }
+
+async function adminFetch<T>(token: string, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: init?.method ?? "GET",
+    headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { "Content-Type": "application/json" } : {}) },
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    const e = new Error(b.detail ?? `${res.status}`) as Error & { status: number };
+    e.status = res.status;
+    throw e;
+  }
+  return res.json();
+}
+
 export const api = {
+  fixtureComps: () => get<{ competitions: FixtureComp[] }>("/fixtures/competitions"),
+  fixtures: (competition: string, status?: string, limit = 400) => get<{ source: string; fixtures: Fixture[]; note?: string }>("/fixtures", { competition, ...(status ? { status } : {}), limit }),
+  standings: (code: string) => get<{ source: string; season: string; updated_at: string; table: StandingRow[]; note?: string }>(`/standings/${code}`),
+  pitchControl: (matchId: string) => get<PitchControl>(`/tracking/skillcorner_open_data/${matchId}/pitch-control`, { grid: "true" }),
+  physical: (matchId: string) => get<{ players: PhysicalRow[]; note: string }>(`/tracking/skillcorner_open_data/${matchId}/physical`),
+  physicalLeaders: (metric: string) => get<{ metric: string; players: PhysicalRow[]; note: string }>("/tracking-physical/leaders", { metric }),
+  trackingRows: () => get<{ rows: TrackingTeamRow[] }>("/tracking"),
+  admin: {
+    status: (t: string) => adminFetch<AdminStatus>(t, "/admin/status"),
+    jobs: (t: string) => adminFetch<{ jobs: AdminJob[] }>(t, "/admin/jobs"),
+    job: (t: string, id: string | number) => adminFetch<AdminJob & { log?: string[]; lines?: string[] }>(t, `/admin/jobs/${id}?tail=200`),
+    start: (t: string, name: string, steps?: string[]) => adminFetch<AdminJob>(t, "/admin/jobs", { method: "POST", body: { name, ...(steps?.length ? { steps } : {}) } }),
+    cancel: (t: string, id: string | number) => adminFetch<AdminJob>(t, `/admin/jobs/${id}/cancel`, { method: "POST" }),
+  },
   momentum: (matchId: number) => get<Momentum>(`/matches/${matchId}/momentum`),
   matchReport: (matchId: number) => get<MatchReport>(`/matches/${matchId}/report`),
   possessions: (matchId: number, kind: "counter" | "corner" | "free_kick") => get<PossessionList>(`/matches/${matchId}/possessions/${kind}`),
@@ -358,3 +394,15 @@ export interface PassNetwork {
   edges: { a: number; b: number; passes: number }[];
   recipient_note: string;
 }
+
+export interface TrackingTeamRow { provider: string; provider_match_id: string; team_name: string; is_home: number }
+export interface AdminStatus {
+  data: { matches: number; events: number; matches_with_360: number; tracking_matches: number; journal_mode?: string };
+  models: { count: number; last_built: number | null };
+  files_gb: { database: number; derived_db: number };
+  disk_free_gb: number;
+  running_job: AdminJob | null;
+  jobs_available: Record<string, string>;
+  build_steps?: string[];
+}
+export interface AdminJob { id: string | number; name: string; status: string; started_at: number; finished_at: number | null; exit_code: number | null }
