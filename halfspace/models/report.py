@@ -74,4 +74,4 @@ def match_report(conn, match_id: int) -> dict | None:
         lines.append("Counters and corners - " + "; ".join(sp) + ".")
     return {"match_id": match_id, "text": lines, "facts": {"xg": {"home": round(xh, 2), "away": round(xa, 2)}, "moments": story["moments"],
             "top_players": tp, "on_top_stretches": _stretches(story["momentum"])},
-            "note": "Generated from model outputs by templates; includes extra time when played, never the shoot-out. xG v2, xT and momentum model cards at /models."}
+            "note": "Generated from model outputs by templates; includes extra time when played, never the shoot-out. See the How this works page for the methods."}

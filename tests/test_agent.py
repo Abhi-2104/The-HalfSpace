@@ -152,7 +152,9 @@ def ask():
 def test_ask_returns_answer_shape(ask):
     r, _ = ask({"question": "hi"}, [LLMResponse(content="hello")])
     assert r.status_code == 200
-    assert r.json() == {"text": "hello", "provenance": [], "unresolved_caveats": []}
+    j = r.json()
+    assert {k: j[k] for k in ("text", "provenance", "unresolved_caveats")} == {"text": "hello", "provenance": [], "unresolved_caveats": []}
+    assert isinstance(j["suggestions"], list)
 
 
 def test_ask_history_reaches_llm_in_order(ask):
@@ -285,3 +287,105 @@ def test_concept_tool_hides_code_paths_and_prompt_forbids_them():
     out = get_tactical_concept(slug="high-press")
     assert "detection_method" not in out and "halfspace." not in str(out) and out["name"] == "High press"
     assert "Never mention code" in SYSTEM_PROMPT and "<br>" in SYSTEM_PROMPT
+
+
+# --- conversation context and follow-up suggestions ---
+
+def test_history_is_trimmed_to_the_last_turns_and_shortened():
+    from halfspace.agent.orchestrator import HISTORY_CHARS, HISTORY_TURNS, trim_history
+    hist = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"m{i} " + "x" * 3000} for i in range(20)]
+    out = trim_history(hist)
+    assert len(out) == HISTORY_TURNS and out[-1]["content"].startswith("m19") and out[0]["content"].startswith("m14")
+    assert all(len(m["content"]) <= HISTORY_CHARS + 4 for m in out)
+    assert trim_history(None) == [] and trim_history([{"role": "user", "content": "short"}]) == [{"role": "user", "content": "short"}]
+
+
+def test_followups_come_from_the_tools_used_and_use_plain_names():
+    from halfspace.agent.orchestrator import ToolExecution
+    from halfspace.agent.suggest import GENERIC, suggest_followups
+    lead = ToolExecution("get_leaders", {}, {"players": [{"display_name": "Karim Benzema"}, {"display_name": "Luis Suárez"}]})
+    s = suggest_followups([lead])
+    assert "How does Karim Benzema compare with Luis Suárez?" in s and len(s) == 3
+    assert all("get_" not in x and "_" not in x for x in s)          # no tool names leak into suggestions
+    assert suggest_followups([]) == GENERIC
+    assert suggest_followups([ToolExecution("get_leaders", {}, {"error": "boom"})]) == GENERIC   # failed tools suggest nothing
+
+
+def test_agent_answer_carries_suggestions_through_the_api(monkeypatch):
+    from fastapi.testclient import TestClient
+    from halfspace.api import app, get_llm
+    app.dependency_overrides[get_llm] = lambda: StubLLMClient([LLMResponse(content="hi")])
+    try:
+        j = TestClient(app).post("/agent/ask", json={"question": "hello"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert j["suggestions"] and j["text"] == "hi"
+
+
+def test_prompt_forbids_concluding_a_player_did_not_play_from_a_tool_error_old():
+    from halfspace.agent.orchestrator import SYSTEM_PROMPT
+    assert "never conclude that a player did not play" in SYSTEM_PROMPT and "Never quote error messages" in SYSTEM_PROMPT
+
+
+def test_fallback_skips_a_model_that_wrote_a_broken_tool_call():
+    import httpx
+    from halfspace.agent import llm
+    req = httpx.Request("POST", "http://x")
+
+    class Broken:
+        n = 0
+        def chat(self, m, t):
+            Broken.n += 1
+            raise httpx.HTTPStatusError("400", request=req, response=httpx.Response(
+                400, request=req, text='{"error":{"code":"tool_use_failed","message":"Failed to call a function"}}'))
+
+    class Good:
+        def chat(self, m, t):
+            return LLMResponse(content="ok")
+
+    fb = llm.FallbackClient([Broken(), Good()])
+    assert fb.chat([], []).content == "ok" and fb.chat([], []).content == "ok"
+    for text in ("tool call validation failed: parameters for tool x did not match schema", "Parsing failed. See 'failed_generation'"):
+        class Odd:
+            def chat(self, m, t, _text=text):
+                raise httpx.HTTPStatusError("400", request=req, response=httpx.Response(400, request=req, text=_text))
+        assert llm.FallbackClient([Odd(), Good()]).chat([], []).content == "ok"
+    assert Broken.n == 2                       # no cooldown: a bad generation is not a rate limit, so it is tried again next time
+    other = httpx.HTTPStatusError("400", request=req, response=httpx.Response(400, request=req, text='{"error":"bad schema"}'))
+
+    class Bad400:
+        def chat(self, m, t):
+            raise other
+
+    import pytest
+    with pytest.raises(httpx.HTTPStatusError):  # a real 400 (bad request) is still raised, not hidden by failover
+        llm.FallbackClient([Bad400(), Good()]).chat([], [])
+
+
+def test_failed_lookup_is_plain_language_and_logged_not_leaked():
+    from halfspace.agent.tools import _wrap
+
+    @_wrap
+    def boom():
+        raise KeyError("player_role")
+    out = boom()
+    assert "KeyError" not in str(out) and "player_role" not in str(out) and "could not be completed" in out["error"]
+
+
+def test_compare_caveat_does_not_name_internal_functions():
+    import re
+    from halfspace.features import player as pf
+    src = open(pf.__file__).read()
+    assert "find_similar_players" not in src
+
+
+@pytest.mark.usefixtures("needs_laliga")
+def test_similar_players_falls_back_to_closest_style_with_a_plain_caveat(ready_db):
+    from halfspace.agent.tools import get_similar_players, get_plays_like
+    # a player with too few minutes in this competition: Messi at Euro 2024 is not in the data; use an unknown id for the pure-error path
+    r = get_similar_players(competition_id=43, season_id=106, player_id=5503)       # Messi, World Cup 2022
+    assert "error" not in r and r["most_similar"]                                    # 732 minutes: full comparison, no fallback needed
+    unknown = get_similar_players(competition_id=43, season_id=106, player_id=999999)
+    assert "error" in unknown and "playing time" in unknown["error"] and "999999" not in unknown["error"]
+    low = get_plays_like(competition_id=43, season_id=106, player_id=999999)
+    assert "error" in low and "playing time" in low["error"]

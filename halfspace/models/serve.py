@@ -129,7 +129,7 @@ def match_possessions(conn, match_id: int, kind: str) -> dict:
             "possessions": [{"team": names.get(r["team_id"]), "team_id": r["team_id"], "minute": int(r["start_t"] // 60),
                              "duration_s": r["duration"], "passes": r["passes"], "shots": r["shots"], "xg": round(r["xg"], 3),
                              "goals": r["goals"], "zone": r["zone"]} for r in rows],
-            "note": "Tagged by the data provider (StatsBomb play_pattern), not inferred."}
+            "note": "Tagged by the data provider, not inferred."}
 
 
 def team_patterns(conn, competition_id: int, season_id: int, kind: str, top_n: int = 20) -> dict:
@@ -161,7 +161,7 @@ def team_styles(conn, competition_id: int, season_id: int) -> dict:
     return {"teams": [{"team_id": int(r.team_id), "team": names.get(int(r.team_id)), "matches": int(r.matches),
                        "x": r.pc1, "y": r.pc2, "archetype": r.archetype, "cluster": int(r.cluster),
                        "z": {f[:-2]: getattr(r, f) for f in feats}} for r in t.itertuples()],
-            "note": "x/y are a 2D projection of standardized style features; z values are vs all team-seasons in the data."}
+            "note": "The map position is a 2D summary of how teams play; the scores compare each team with every team-season in the data."}
 
 
 def similar_styles(conn, team_id: int, competition_id: int, season_id: int, top_n: int = 6) -> dict:

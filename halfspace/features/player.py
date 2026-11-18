@@ -12,7 +12,15 @@ import numpy as np
 from halfspace import db
 from halfspace.features import is_progressive_pass
 
-MIN_MINUTES = 900  # ~10 full matches - reliability floor, matches scratchpad validation
+MIN_MINUTES = 900  # ~10 full matches - reliability floor for league seasons
+TOURNAMENT_MIN_MINUTES = 300  # a World Cup or Euro is 7 matches at most: 900 would leave every list empty (Messi had 732 at WC 2022)
+TOURNAMENT_MAX_MATCHES = 80
+
+
+def min_minutes(conn: sqlite3.Connection, competition_id: int, season_id: int) -> int:
+    """The minutes floor for this competition-season: 900 for a league season, 300 for a short tournament."""
+    n = db.season_match_count(conn, competition_id, season_id)
+    return TOURNAMENT_MIN_MINUTES if n <= TOURNAMENT_MAX_MATCHES else MIN_MINUTES
 
 # attacking positions only - role peer group for similarity (project spec: role/position-aware comparison)
 ATTACK_POSITIONS = {
@@ -46,16 +54,18 @@ def season_player_profiles(conn: sqlite3.Connection, competition_id: int, season
         """SELECT player_id, SUM(minutes) AS minutes,
                   (SELECT position FROM player_match_minutes p2
                    WHERE p2.player_id = pmm.player_id
+                     AND p2.match_id IN (SELECT id FROM match WHERE competition_id = ? AND season_id = ?)
                    GROUP BY position ORDER BY COUNT(*) DESC LIMIT 1) AS position,
                   (SELECT team_id FROM player_match_minutes p3
                    WHERE p3.player_id = pmm.player_id
-                   GROUP BY team_id ORDER BY COUNT(*) DESC LIMIT 1) AS team_id
+                     AND p3.match_id IN (SELECT id FROM match WHERE competition_id = ? AND season_id = ?)
+                   GROUP BY team_id ORDER BY COUNT(*) DESC LIMIT 1) AS team_id  -- within THIS competition-season (a World Cup player's club is not his team there)
            FROM player_match_minutes pmm
            JOIN match m ON m.id = pmm.match_id
            WHERE m.competition_id = ? AND m.season_id = ?
            GROUP BY player_id
            HAVING SUM(minutes) >= ?""",
-        (competition_id, season_id, MIN_MINUTES),
+        (competition_id, season_id, competition_id, season_id, competition_id, season_id, min_minutes(conn, competition_id, season_id)),
     ).fetchall()
 
     profiles = {}
@@ -127,10 +137,14 @@ def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: in
     profiles = season_player_profiles(conn, competition_id, season_id)
     if not profiles:
         return {"error": "no players with sufficient minutes in this competition/season"}
+    floor = min_minutes(conn, competition_id, season_id)
 
     target = next((p for p in profiles if p["player_id"] == player_id), None)
     if target is None:
-        return {"error": f"player {player_id} not found with >= {MIN_MINUTES} minutes in this competition/season"}
+        played = conn.execute("SELECT COALESCE(SUM(pmm.minutes), 0) FROM player_match_minutes pmm JOIN match m ON m.id = pmm.match_id "
+                              "WHERE pmm.player_id = ? AND m.competition_id = ? AND m.season_id = ?", (player_id, competition_id, season_id)).fetchone()[0]
+        why = (f"they played {played:.0f} minutes, below the {floor} needed" if played else "they have no recorded minutes in it")
+        return {"error": f"player {player_id} has no profile in this competition/season: {why}. This says nothing about whether they played at all."}
 
     pool = profiles
     peer_group = "all positions (target's position not in the attacking peer-group list)"
@@ -160,7 +174,7 @@ def similar_players(conn: sqlite3.Connection, competition_id: int, season_id: in
         "target": target,
         "peer_group": peer_group,
         "peer_group_size": len(pool),
-        "reliability_note": f"minimum {MIN_MINUTES} minutes required; small peer groups reduce confidence" if len(pool) < 15 else None,
+        "reliability_note": f"minimum {floor} minutes required; small peer groups reduce confidence" if len(pool) < 15 else None,
         "most_similar": [
             {"player_id": p["player_id"], "name": p["name"], "display_name": p.get("display_name"), "team": p["team"], "similarity": round(sim, 3),
              "features": {f: p[f] for f in SIMILARITY_FEATURES}}
@@ -177,13 +191,13 @@ def compare_players(conn: sqlite3.Connection, player_a: int, player_b: int, comp
     a, b = profiles.get(player_a), profiles.get(player_b)
     if not a or not b:
         missing = [pid for pid in (player_a, player_b) if pid not in profiles]
-        return {"error": f"player(s) not found with >= {MIN_MINUTES} minutes: {missing}"}
+        return {"error": f"no profile for player(s) {missing}: not enough minutes in this competition/season "
+                         f"(need {min_minutes(conn, competition_id, season_id)}). This says nothing about whether they played at all."}
 
     diff = {f: round(a[f] - b[f], 2) for f in SIMILARITY_FEATURES}
     role_mismatch = a["position"] != b["position"]
     caveat = None
     if role_mismatch:
         caveat = (f"{a.get('display_name') or a['name']} ({a['position']}) and {b.get('display_name') or b['name']} ({b['position']}) play different positions - "
-                  "a raw stat comparison may not be meaningful. Consider find_similar_players within a role "
-                  "peer group instead of a direct head-to-head.")
+                  "a raw stat comparison may not be meaningful. Comparing players of the same position gives a fairer picture.")
     return {"player_a": a, "player_b": b, "diff_a_minus_b": diff, "role_mismatch": role_mismatch, "caveat": caveat}

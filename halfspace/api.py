@@ -170,7 +170,7 @@ def season_players(competition_id: int, season_id: int):
     profiles = player_features.season_player_profiles(conn, competition_id, season_id)
     if not profiles:
         raise HTTPException(404, "no players with sufficient minutes for this competition/season")
-    return {"competition_id": competition_id, "season_id": season_id, "min_minutes": player_features.MIN_MINUTES,
+    return {"competition_id": competition_id, "season_id": season_id, "min_minutes": player_features.min_minutes(conn, competition_id, season_id),
             "players": sorted(profiles, key=lambda p: -p["goals_p90"])}
 
 

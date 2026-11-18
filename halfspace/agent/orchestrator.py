@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import json
 
 from halfspace.agent.llm import LLMClient, reset_waits
+from halfspace.agent.suggest import suggest_followups
 from halfspace.agent.tools import TOOLS, TOOLS_BY_NAME
 
 MAX_TOOL_ROUNDS = 8  # a stuck loop must fail loudly, not spin forever; the last round asks for an answer, no tools
@@ -26,10 +27,11 @@ If a comparison is flagged role_mismatch or low_sample, say why that weakens the
 just reporting the numbers. \
 Earlier conversation turns are context for resolving references like "him" or "that season"; \
 call tools again for any new figure instead of reusing numbers from earlier answers. \
-Refer to players by their display_name (the name they are known by), not the full legal name. Never mention code, function names, module paths or tool names. Answer in plain football language. \
+When something cannot be found, say why in plain terms (for example, too few minutes in the data) and still give the closest or most likely alternatives you do have; if a lookup fails, try a different approach before giving up, and never conclude that a player did not play, or that a fact is false, just because a lookup had no data. Refer to players by their display_name (the name they are known by), not the full legal name. Never mention code, function names, module paths, tool names, endpoint paths, field names or metric codes such as goals_p90; say "goals per 90 minutes" instead. Never quote error messages. Answer in plain football language. \
 Use plain markdown: tables only for numbers, never <br> or HTML inside tables; use bullet lists for text."""
 
 
+HISTORY_TURNS, HISTORY_CHARS = 6, 900  # earlier conversation sent to the model: last 6 messages, each cut to 900 chars (about 1.5K tokens)
 LATEST_BUDGET, OLDER_BUDGET = 3000, 600  # chars of tool result the LLM sees; ~1K and ~200 tokens
 KEEP_FULL = ("caveat", "error")  # never truncated: the answer must be able to restate them exactly
 
@@ -67,6 +69,16 @@ def compact_for_llm(messages: list[dict]) -> list[dict]:
     return out
 
 
+def trim_history(history: list[dict] | None) -> list[dict]:
+    """Keep the conversation light for the free-tier token limits: only the last few messages, each shortened
+    (answers lead with the key facts, so the start is what matters for resolving 'him' or 'that season')."""
+    out = []
+    for m in (history or [])[-HISTORY_TURNS:]:
+        text = m["content"]
+        out.append({"role": m["role"], "content": text if len(text) <= HISTORY_CHARS else text[:HISTORY_CHARS].rstrip() + " ..."})
+    return out
+
+
 @dataclass
 class ToolExecution:
     tool: str
@@ -79,6 +91,7 @@ class AgentAnswer:
     text: str
     provenance: list[ToolExecution] = field(default_factory=list)
     unresolved_caveats: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)  # follow-up questions, built from the tools used
 
 
 class Agent:
@@ -89,7 +102,7 @@ class Agent:
     def run(self, question: str, history: list[dict] | None = None) -> AgentAnswer:
         """history: prior {role: user|assistant, content} text turns only (no tool
         traffic). Caveat tracking is per-run: it covers tool results from THIS question."""
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *(history or []),
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *trim_history(history),
                     {"role": "user", "content": question}]
         provenance: list[ToolExecution] = []
         caveats: list[str] = []
@@ -106,7 +119,8 @@ class Agent:
             if not response.tool_calls:
                 text = response.content or ""
                 missing = [c for c in caveats if c not in text]
-                return AgentAnswer(text=text, provenance=provenance, unresolved_caveats=missing)
+                return AgentAnswer(text=text, provenance=provenance, unresolved_caveats=missing,
+                                   suggestions=suggest_followups(provenance))
 
             if last:
                 break  # still asking for tools with none allowed: fail loudly below

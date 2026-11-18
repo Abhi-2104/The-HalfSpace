@@ -126,3 +126,26 @@ def test_match_search_finds_el_clasico(client):
     if not ms:
         pytest.skip("La Liga 2015/16 not ingested")
     assert len(ms) == 2 and {m["home_team"] for m in ms} == {"Barcelona", "Real Madrid"}  # home and away fixture
+
+
+def test_tournament_players_have_profiles_and_teams_come_from_that_tournament(client):
+    """Regression: the 900-minute floor left every World Cup list empty (Messi had 732 minutes), and the agent then told a
+    user that Messi 'didn't take part'. Tournaments use a 300-minute floor, and the team shown is the one played for there."""
+    r = client.get("/competitions/43/seasons/106/players")
+    if r.status_code != 200:
+        pytest.skip("World Cup 2022 not ingested")
+    j = r.json()
+    assert j["min_minutes"] == 300 and len(j["players"]) > 100
+    sim = client.get(f"/competitions/43/seasons/106/players/{MESSI_ID}/similar").json()
+    assert "error" not in sim and len(sim["most_similar"]) >= 3
+    assert {p["team"] for p in sim["most_similar"]} <= {p["team"] for p in j["players"]}
+    assert not any("Paris Saint-Germain" == p["team"] for p in sim["most_similar"] if p["name"].startswith("Kylian"))
+
+
+def test_missing_profile_error_never_claims_the_player_did_not_play(client):
+    from halfspace import db
+    from halfspace.features import player as pf
+    err = pf.similar_players(db.connect(), 43, 106, 999999)
+    if "error" not in err or "sufficient" in err["error"]:
+        pytest.skip("World Cup 2022 not ingested")
+    assert "says nothing about whether they played" in err["error"]

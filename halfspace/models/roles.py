@@ -87,12 +87,18 @@ def train() -> dict:
     return card
 
 
-def similar_players(conn, player_id: int, competition_id: int, season_id: int, top_n: int = 8) -> dict:
+def similar_players(conn, player_id: int, competition_id: int | None, season_id: int | None, top_n: int = 8, any_season: bool = False) -> dict:
+    """Closest players in style across all competitions. any_season=True: if the player has too few minutes in the asked
+    competition-season, use the season where they played the most instead (and say so)."""
     t = pd.read_sql("SELECT * FROM player_role", derive.connect_derived())
     ecols = [c for c in t.columns if c.startswith("e") and c[1:].isdigit()]
-    me = t[(t["player_id"] == player_id) & (t["competition_id"] == competition_id) & (t["season_id"] == season_id)]
+    mine = t[t["player_id"] == player_id]
+    me = mine[(mine["competition_id"] == competition_id) & (mine["season_id"] == season_id)]
+    used_other = False
+    if me.empty and any_season and not mine.empty:
+        me, used_other = mine.sort_values("minutes", ascending=False).head(1), True
     if me.empty:
-        return {"error": "no role data for this player-season (needs 600+ minutes)"}
+        return {"error": "There is not enough playing time for this player in the data (about 600 minutes in a season) to describe how they play."}
     d = ((t[ecols] - me.iloc[0][ecols]) ** 2).sum(axis=1) ** 0.5
     near = t.assign(distance=d)[t["player_id"] != player_id].sort_values("distance").iloc[:top_n]  # other players only
     ids = [int(i) for i in near["player_id"]]
@@ -100,7 +106,8 @@ def similar_players(conn, player_id: int, competition_id: int, season_id: int, t
     shown = pn.display_names(conn, ids)
     cs = {(r["cid"], r["sid"]): f"{r['c']} {r['s']}" for r in conn.execute(
         "SELECT c.id cid, s.id sid, c.name c, s.name s FROM competition c JOIN season s ON s.competition_id=c.id")}
-    return {"player_id": player_id, "role": me.iloc[0]["role"],
+    cs_me = cs.get((int(me.iloc[0]["competition_id"]), int(me.iloc[0]["season_id"])))
+    return {"player_id": player_id, "role": me.iloc[0]["role"], "based_on": cs_me if used_other else None,
             "plays_like": [{"player_id": int(r.player_id), "name": names.get(int(r.player_id)), "display_name": shown.get(int(r.player_id)),
                             "competition": cs.get((int(r.competition_id), int(r.season_id))), "role": r.role,
                             "distance": round(float(r.distance), 2)} for r in near.itertuples()],

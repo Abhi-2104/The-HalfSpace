@@ -86,6 +86,8 @@ def load_dotenv(path: Path = Path(__file__).resolve().parents[2] / ".env") -> No
                 os.environ.setdefault(k.strip(), v.strip())
 
 
+# Groq's 400 messages when a model produces a broken tool call (not a problem with our request)
+BAD_GENERATION = ("tool_use_failed", "failed_generation", "tool call validation failed", "Parsing failed")
 _waits_left: ContextVar[int] = ContextVar("waits_left", default=1)
 WAIT_CAP = 20.0  # never sleep longer than this for a rate limit; beyond it the caller gets the 429
 
@@ -126,7 +128,11 @@ class FallbackClient:
             try:
                 return c.chat(messages, tools)
             except httpx.HTTPStatusError as e:
-                if e.response.status_code != 429 and e.response.status_code < 500:
+                code = e.response.status_code
+                if code == 400 and any(m in (e.response.text or "") for m in BAD_GENERATION):
+                    self._last = e  # this model wrote an unparseable or invalid tool call: try the next model, no cooldown
+                    continue
+                if code != 429 and code < 500:
                     raise
                 self._until[i] = time.monotonic() + retry_after(e.response, self.default_cooldown)
                 self._last = e

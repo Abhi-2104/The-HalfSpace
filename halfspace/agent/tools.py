@@ -5,6 +5,7 @@ halfspace.tactical). No separate DB access path for the agent vs the frontend
 (project spec section 19/23) - this is the enforcement of that, not just a
 docstring claim: there is no tool here that queries the DB directly.
 """
+import logging
 from dataclasses import dataclass
 from typing import Callable
 
@@ -23,6 +24,7 @@ class ToolSpec:
     handler: Callable[..., dict]
 
 
+log = logging.getLogger("halfspace.agent")
 LIST_CAP = 25  # a 380-match/344-player list is ~30k tokens - over free-tier per-minute limits
 
 
@@ -35,7 +37,9 @@ def _wrap(fn):
         try:
             result = fn(**kwargs)
         except Exception as exc:
-            return {"error": f"{type(exc).__name__}: {exc}"}
+            log.warning("tool %s failed: %s: %s", getattr(fn, "__name__", "?"), type(exc).__name__, exc)
+            # plain language only: the model repeats what it sees, and users should never see code or exception names
+            return {"error": "That lookup could not be completed (the details asked for may be invalid or missing from the data)."}
         if isinstance(result, dict):
             cut = {k: f"showing first {LIST_CAP} of {len(v)}" for k, v in result.items()
                    if isinstance(v, list) and len(v) > LIST_CAP}
@@ -82,17 +86,30 @@ def get_match_sequences(match_id: int) -> dict:
 
 @_wrap
 def get_season_players(competition_id: int, season_id: int, sort_by: str = "goals_p90") -> dict:
-    profiles = player_features.season_player_profiles(db.connect(), competition_id, season_id)
+    conn = db.connect()
+    profiles = player_features.season_player_profiles(conn, competition_id, season_id)
     if not profiles:
         return {"error": "no players with sufficient minutes for this competition/season"}
     if sort_by not in profiles[0] or not isinstance(profiles[0][sort_by], (int, float)):
         return {"error": f"cannot sort by '{sort_by}'; use a numeric field like {', '.join(k for k, v in profiles[0].items() if isinstance(v, float))}"}
-    return {"sorted_by": sort_by, "players": sorted(profiles, key=lambda p: -p[sort_by]), "min_minutes": player_features.MIN_MINUTES}
+    return {"sorted_by": sort_by, "players": sorted(profiles, key=lambda p: -p[sort_by]), "min_minutes": player_features.min_minutes(conn, competition_id, season_id)}
+
+
+FALLBACK_CAVEAT = ("There was not enough playing time in this competition for a full like-for-like comparison, so these are the players "
+                   "who play in the most similar way across all competitions in the data. Treat them as likely matches, not certain ones.")
 
 
 @_wrap
 def get_similar_players(competition_id: int, season_id: int, player_id: int, top_n: int = 8) -> dict:
-    return player_features.similar_players(db.connect(), competition_id, season_id, player_id, top_n=top_n)
+    conn = db.connect()
+    r = player_features.similar_players(conn, competition_id, season_id, player_id, top_n=top_n)
+    if "error" not in r:
+        return r
+    fb = roles.similar_players(conn, player_id, competition_id, season_id, min(top_n, 6), any_season=True)
+    if "error" in fb:
+        return {"error": "There is not enough playing time for this player in the data to say who plays most like them."}
+    fb["caveat"] = FALLBACK_CAVEAT + (f" The player's style is taken from {fb['based_on']}." if fb.get("based_on") else "")
+    return fb
 
 
 @_wrap
@@ -165,7 +182,16 @@ def get_goalkeepers(competition_id: int, season_id: int) -> dict:
 
 @_wrap
 def get_plays_like(competition_id: int, season_id: int, player_id: int) -> dict:
-    return roles.similar_players(db.connect(), player_id, competition_id, season_id, 6)
+    conn = db.connect()
+    r = roles.similar_players(conn, player_id, competition_id, season_id, 6, any_season=True)
+    if "error" not in r:
+        if r.get("based_on"):
+            r["caveat"] = f"There was not enough playing time in that competition, so the player's style is taken from {r['based_on']}."
+        return r
+    r2 = player_features.similar_players(conn, competition_id, season_id, player_id, top_n=6)
+    if "error" in r2:
+        return {"error": "There is not enough playing time for this player in the data to say who plays most like them."}
+    return r2
 
 
 @_wrap
@@ -208,7 +234,7 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_profile),
     ToolSpec("get_match_sequences", "Heuristically-detected counterattacks in one match (medium confidence).",
              {"type": "object", "properties": {"match_id": {"type": "integer"}}, "required": ["match_id"]}, get_match_sequences),
-    ToolSpec("get_season_players", "Per-90 player profiles (min 900 minutes), best first by sort_by "
+    ToolSpec("get_season_players", "Per-90 player profiles (min 900 minutes in a league season, 300 in a tournament), best first by sort_by "
              "(goals_p90, shots_p90, key_passes_p90, prog_passes_p90, prog_carries_p90, dribbles_completed_p90, pressures_p90, touches_p90). "
              "Returns only the top 25.",
              {"type": "object", "properties": {"competition_id": {"type": "integer"}, "season_id": {"type": "integer"},
